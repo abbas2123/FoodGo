@@ -5,6 +5,7 @@ import {
   NavigationContainerRef,
   DefaultTheme,
   DarkTheme,
+  LinkingOptions,
 } from "@react-navigation/native";
 import { Provider, useSelector } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -85,10 +86,41 @@ function AppWithTheme() {
     setActiveRouteName(name);
   }, []);
 
+  const linking: LinkingOptions<RootStackParamList> = {
+    prefixes: ["foodigo://"],
+    config: {
+      screens: {
+        Auth: {
+          screens: {
+            Welcome: "welcome",
+            PhoneNumber: "login",
+            OtpVerification: "verify-otp",
+          },
+        },
+        App: {
+          screens: {
+            Home: "home",
+            RestaurantDetails: "restaurant/:id",
+            Orders: "orders",
+            OrderDetails: "orders/:orderId",
+            TrackOrderDetails: "orders/:orderId/track",
+            Profile: "profile",
+            Checkout: "checkout",
+            Fav: "favorites",
+            Search: "search",
+            PrivacyPolicy: "privacy",
+            TermsOfService: "terms",
+          },
+        },
+      },
+    },
+  };
+
   return (
     <NavigationContainer
       ref={navigationRef}
       theme={navigationTheme}
+      linking={linking}
       onReady={captureRoute}
       onStateChange={captureRoute}
     >

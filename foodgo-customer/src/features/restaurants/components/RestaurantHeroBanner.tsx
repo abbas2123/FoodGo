@@ -2,6 +2,7 @@ import React from "react";
 import { View, StyleSheet, Pressable, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/theme/useTheme";
 
 interface RestaurantHeroBannerProps {
   image: string;
@@ -20,6 +21,8 @@ export const RestaurantHeroBanner: React.FC<RestaurantHeroBannerProps> = ({
   onBack,
   onToggleFavorite,
 }) => {
+  const { theme, isDark } = useTheme();
+
   return (
     <View style={{ height: bannerHeight, overflow: "hidden" }}>
       <Animated.Image
@@ -31,14 +34,38 @@ export const RestaurantHeroBanner: React.FC<RestaurantHeroBannerProps> = ({
       />
       <View style={styles.bannerOverlay} />
       <SafeAreaView edges={["top"]} style={styles.bannerControls}>
-        <Pressable style={styles.floatingBtn} onPress={onBack}>
-          <Ionicons name="arrow-back" size={20} color="#1F2937" />
+        <Pressable
+          style={[
+            styles.floatingBtn,
+            {
+              backgroundColor: isDark
+                ? "rgba(36, 36, 36, 0.92)"
+                : "rgba(255,255,255,0.95)",
+              borderColor: isDark ? "rgba(255, 255, 255, 0.15)" : "transparent",
+              borderWidth: isDark ? 1 : 0,
+            },
+          ]}
+          onPress={onBack}
+        >
+          <Ionicons name="arrow-back" size={20} color={theme.text} />
         </Pressable>
-        <Pressable style={styles.floatingBtn} onPress={onToggleFavorite}>
+        <Pressable
+          style={[
+            styles.floatingBtn,
+            {
+              backgroundColor: isDark
+                ? "rgba(36, 36, 36, 0.92)"
+                : "rgba(255,255,255,0.95)",
+              borderColor: isDark ? "rgba(255, 255, 255, 0.15)" : "transparent",
+              borderWidth: isDark ? 1 : 0,
+            },
+          ]}
+          onPress={onToggleFavorite}
+        >
           <Ionicons
             name={isFavorite ? "heart" : "heart-outline"}
             size={20}
-            color={isFavorite ? "#C1121F" : "#1F2937"}
+            color={isFavorite ? "#C1121F" : theme.text}
           />
         </Pressable>
       </SafeAreaView>

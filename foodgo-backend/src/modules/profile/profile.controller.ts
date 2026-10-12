@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -33,5 +33,22 @@ export class ProfileController {
   async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
     const userId = BigInt(req.user.sub ?? req.user.userId);
     return this.profileService.updateProfile(userId, dto);
+  }
+
+  @Delete()
+  @ApiOperation({ summary: 'Delete user account, anonymize personal data, and revoke sessions' })
+  @ApiOkResponse({
+    description: 'Account successfully deleted and all sessions revoked',
+    schema: {
+      example: {
+        success: true,
+        message: 'Account deleted successfully. Personal data removed and active sessions revoked.',
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  async deleteAccount(@Req() req: any) {
+    const userId = BigInt(req.user.sub ?? req.user.userId);
+    return this.profileService.deleteAccount(userId);
   }
 }

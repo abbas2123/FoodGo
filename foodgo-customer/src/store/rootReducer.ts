@@ -10,6 +10,7 @@ import addressReducer from './slices/addressSlice';
 import restaurantsReducer from './slices/restaurantsSlice';
 import ordersReducer from './slices/ordersSlice';
 import favoritesReducer from './slices/favoritesSlice';
+import notificationsReducer from './slices/notificationsSlice';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -22,6 +23,7 @@ const rootReducer = combineReducers({
   restaurants: restaurantsReducer,
   orders: ordersReducer,
   favorites: favoritesReducer,
+  notifications: notificationsReducer,
 });
 
 export type RootReducerState = ReturnType<typeof rootReducer>;

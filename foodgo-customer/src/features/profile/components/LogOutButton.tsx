@@ -1,12 +1,15 @@
 import React from "react";
 import { Pressable, Text, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/theme/useTheme";
 
 interface Props {
   onLogout: () => void;
 }
 
 export default function LogOutButton({ onLogout }: Props) {
+  const { theme } = useTheme();
+
   const handlePress = () => {
     Alert.alert("Log Out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
@@ -16,7 +19,11 @@ export default function LogOutButton({ onLogout }: Props) {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.button,
+        { backgroundColor: theme.primaryLight },
+        pressed && styles.pressed,
+      ]}
       onPress={handlePress}
     >
       <Ionicons name="log-out-outline" size={18} color="#e53935" />
@@ -28,7 +35,6 @@ export default function LogOutButton({ onLogout }: Props) {
 const styles = StyleSheet.create({
   button: {
     height: 44,
-    backgroundColor: "#fde9e9",
     borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",

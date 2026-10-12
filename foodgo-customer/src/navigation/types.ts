@@ -7,13 +7,31 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 export type AuthStackParamList = {
   Welcome: undefined;
   PhoneNumber: undefined;
-  OtpVerification: { phoneNumber?: string } | undefined;
+  OtpVerification: { email?: string } | undefined;
 };
+
+export interface ProductDetailsParams {
+  dish: {
+    id: string | number;
+    name: string;
+    price: number | string;
+    image?: string;
+    description?: string;
+    rating?: number | string;
+    isVeg?: boolean;
+    reviews?: string | number;
+    category?: string;
+    isBestseller?: boolean;
+  };
+  restaurantId?: string;
+  restaurantName?: string;
+}
 
 export type AppStackParamList = {
   Home: undefined;
   MainTabs: undefined;
   RestaurantDetails: { id: string } | undefined;
+  ProductDetails: ProductDetailsParams;
   Orders: undefined;
   Search: undefined;
   Fav: undefined;
@@ -22,6 +40,8 @@ export type AppStackParamList = {
   OrderDetails: { orderId: string } | undefined;
   EditProfile: undefined;
   TrackOrderDetails: { orderId?: string } | undefined;
+  PrivacyPolicy: undefined;
+  TermsOfService: undefined;
 };
 
 export type RootStackParamList = {

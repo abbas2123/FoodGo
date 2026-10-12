@@ -16,7 +16,9 @@ export class SecureStorage {
         await SecureStore.setItemAsync(key, value);
       }
     } catch (error) {
-      console.error(`SecureStorage setItem error for key ${key}:`, error);
+      if (__DEV__) {
+        console.warn(`[SecureStorage] SecureStore.setItemAsync failed for key ${key}:`, error);
+      }
     }
   }
 
@@ -27,10 +29,13 @@ export class SecureStorage {
           return localStorage.getItem(key);
         }
         return null;
+      } else {
+        return await SecureStore.getItemAsync(key);
       }
-      return await SecureStore.getItemAsync(key);
     } catch (error) {
-      console.error(`SecureStorage getItem error for key ${key}:`, error);
+      if (__DEV__) {
+        console.warn(`[SecureStorage] SecureStore.getItemAsync failed for key ${key}:`, error);
+      }
       return null;
     }
   }
@@ -45,7 +50,9 @@ export class SecureStorage {
         await SecureStore.deleteItemAsync(key);
       }
     } catch (error) {
-      console.error(`SecureStorage removeItem error for key ${key}:`, error);
+      if (__DEV__) {
+        console.warn(`[SecureStorage] SecureStore.deleteItemAsync failed for key ${key}:`, error);
+      }
     }
   }
 

@@ -10,6 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { DishItem } from "@/features/home/types";
 import { useTheme } from "@/theme/useTheme";
+import { formatINR } from "@/utils/currency";
 
 interface PopularDishCardProps {
   dish: DishItem;
@@ -91,7 +92,7 @@ export const PopularDishCard: React.FC<PopularDishCardProps> = ({
             { fontSize: isSmallScreen ? 18 : 24 },
           ]}
         >
-          ${dish.price}
+          {formatINR(Number(dish.price) || 0)}
         </Text>
 
         <Pressable

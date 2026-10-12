@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { PaymentMethodType } from '../../generated/prisma/client.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
 
 describe('PaymentMethodsController', () => {
   let controller: PaymentMethodsController;
@@ -33,6 +34,7 @@ describe('PaymentMethodsController', () => {
         { provide: JwtService, useValue: { verifyAsync: vi.fn() } },
         { provide: ConfigService, useValue: { get: vi.fn() } },
         { provide: Reflector, useValue: { getAllAndOverride: vi.fn() } },
+        { provide: PrismaService, useValue: { user: { findUnique: vi.fn() } } },
       ],
     }).compile();
 

@@ -33,7 +33,7 @@ export const OtpVerificationScreen: React.FC<AuthScreenProps<'OtpVerification'>>
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const inputRef = useRef<TextInput>(null);
-  const phoneNumber = route.params?.phoneNumber || '';
+  const email = route.params?.email || '';
 
   const submitOtp = async (codeToVerify: string) => {
     if (codeToVerify.length !== OTP_LENGTH || loading) return;
@@ -44,7 +44,7 @@ export const OtpVerificationScreen: React.FC<AuthScreenProps<'OtpVerification'>>
 
     try {
       const resultAction = await dispatch(
-        verifyOtpThunk({ phone: phoneNumber, otp: codeToVerify }),
+        verifyOtpThunk({ email, otp: codeToVerify }),
       );
 
       if (verifyOtpThunk.rejected.match(resultAction)) {
@@ -69,12 +69,12 @@ export const OtpVerificationScreen: React.FC<AuthScreenProps<'OtpVerification'>>
   };
 
   const handleResendOtp = async () => {
-    if (!phoneNumber || resending) return;
+    if (!email || resending) return;
     setResending(true);
     setErrorMessage(null);
     setOtp('');
     try {
-      await authApi.sendOtp(phoneNumber);
+      await authApi.sendOtp(email);
       Alert.alert('Success', 'A new 6-digit verification code has been sent.');
       inputRef.current?.focus();
     } catch (err: any) {
@@ -100,7 +100,7 @@ export const OtpVerificationScreen: React.FC<AuthScreenProps<'OtpVerification'>>
         <View style={styles.content}>
           <Text style={[styles.title, { color: theme.text }]}>Enter 6-Digit Code</Text>
           <Text style={[styles.subtitle, { color: theme.muted }]}>
-            Enter the 6-digit code sent to {phoneNumber || 'your phone number'}
+            Enter the 6-digit code sent to {email ? email : 'your email address'}
           </Text>
 
           <Pressable style={styles.otpBoxesContainer} onPress={focusInput}>
@@ -141,9 +141,10 @@ export const OtpVerificationScreen: React.FC<AuthScreenProps<'OtpVerification'>>
             value={otp}
             onChangeText={handleOtpChange}
             textContentType="oneTimeCode"
-            autoComplete="sms-otp"
+            autoComplete="one-time-code"
             autoFocus
             editable={!loading}
+            accessibilityLabel="One-time verification code input"
           />
 
           {errorMessage && (

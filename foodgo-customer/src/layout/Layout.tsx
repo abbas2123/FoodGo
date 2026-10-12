@@ -31,15 +31,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
    */
   const currentRoute = useActiveRouteName();
 
-  // Screens where the bottom chrome (cart bar + tab bar) should be hidden
-  const hideBottomUI =
+  // Screens where the bottom tab bar should be hidden
+  const hideTabBar =
     currentRoute === "Checkout" ||
     currentRoute === "RestaurantDetails" ||
+    currentRoute === "ProductDetails" ||
+    currentRoute === "OrderDetails" ||
+    currentRoute === "TrackOrderDetails";
+
+  // Screens where the floating cart bar should be hidden
+  const hideCartBar =
+    currentRoute === "Checkout" ||
     currentRoute === "OrderDetails" ||
     currentRoute === "TrackOrderDetails";
 
   // Screens with full-bleed hero content (which manage their own top insets)
-  const isFullBleedRoute = currentRoute === "RestaurantDetails";
+  const isFullBleedRoute =
+    currentRoute === "RestaurantDetails" ||
+    currentRoute === "ProductDetails";
 
   // Keep the active tab indicator in sync.
   // OrderDetails and TrackOrderDetails are children of the Orders flow —
@@ -61,7 +70,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navigation =
     useNavigation<NativeStackNavigationProp<AppStackParamList>>();
 
-  const handleNavigation = (tab: Tab, screen: keyof AppStackParamList) => {
+  const handleNavigation = (
+    tab: Tab,
+    screen: "Home" | "Search" | "Orders" | "Fav" | "Profile",
+  ) => {
     setActiveTab(tab);
     navigation.navigate(screen);
   };
@@ -81,11 +93,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </View>
 
-      {/* Global cart bar — hidden on Checkout & RestaurantDetails */}
-      {!hideBottomUI && <GlobalCartBar />}
+      {/* Global cart bar — visible on RestaurantDetails, ProductDetails, Home, Search, etc. */}
+      {!hideCartBar && <GlobalCartBar />}
 
-      {/* Bottom Navigation — hidden on Checkout & RestaurantDetails */}
-      {!hideBottomUI && (
+      {/* Bottom Navigation — hidden on detail and checkout screens */}
+      {!hideTabBar && (
         <View
           style={[
             styles.layoutContainer,

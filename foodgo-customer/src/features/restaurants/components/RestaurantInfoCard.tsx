@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/theme/useTheme";
 import { RestaurantData } from "../types";
 
 interface RestaurantInfoCardProps {
@@ -10,25 +11,58 @@ interface RestaurantInfoCardProps {
 export const RestaurantInfoCard: React.FC<RestaurantInfoCardProps> = ({
   restaurant,
 }) => {
+  const { theme, isDark } = useTheme();
+
   return (
-    <View style={styles.infoCard}>
-      <Text style={styles.restaurantName}>{restaurant.name}</Text>
-      <Text style={styles.cuisineText}>{restaurant.cuisine}</Text>
+    <View
+      style={[
+        styles.infoCard,
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          borderWidth: isDark ? 1 : 0,
+        },
+      ]}
+    >
+      <Text style={[styles.restaurantName, { color: theme.text }]}>
+        {restaurant.name}
+      </Text>
+      <Text style={[styles.cuisineText, { color: theme.secondaryText }]}>
+        {restaurant.cuisine}
+      </Text>
 
       <View style={styles.metaRow}>
         <View style={styles.ratingBadge}>
           <Ionicons name="star" size={14} color="#FF6B35" />
-          <Text style={styles.ratingText}>{restaurant.rating}</Text>
-          <Text style={styles.reviewCount}>
+          <Text style={[styles.ratingText, { color: theme.text }]}>
+            {restaurant.rating}
+          </Text>
+          <Text style={[styles.reviewCount, { color: theme.secondaryText }]}>
             ({restaurant.reviewCount} reviews)
           </Text>
         </View>
-        <View style={styles.metaDivider} />
-        <Ionicons name="time-outline" size={14} color="#6B7280" />
-        <Text style={styles.metaText}>{restaurant.deliveryTime}</Text>
-        <View style={styles.metaDivider} />
-        <Ionicons name="bicycle-outline" size={14} color="#6B7280" />
-        <Text style={styles.metaText}>{restaurant.deliveryFee} Delivery</Text>
+        <View
+          style={[styles.metaDivider, { backgroundColor: theme.border }]}
+        />
+        <Ionicons
+          name="time-outline"
+          size={14}
+          color={theme.secondaryText}
+        />
+        <Text style={[styles.metaText, { color: theme.secondaryText }]}>
+          {restaurant.deliveryTime}
+        </Text>
+        <View
+          style={[styles.metaDivider, { backgroundColor: theme.border }]}
+        />
+        <Ionicons
+          name="bicycle-outline"
+          size={14}
+          color={theme.secondaryText}
+        />
+        <Text style={[styles.metaText, { color: theme.secondaryText }]}>
+          {restaurant.deliveryFee} Delivery
+        </Text>
       </View>
 
       <View style={styles.openBadge}>
@@ -37,11 +71,21 @@ export const RestaurantInfoCard: React.FC<RestaurantInfoCardProps> = ({
       </View>
 
       {restaurant.offer && (
-        <View style={styles.offerBanner}>
+        <View
+          style={[
+            styles.offerBanner,
+            {
+              backgroundColor: isDark ? theme.primaryLight : "#FFF5F5",
+              borderColor: isDark ? theme.border : "#FED7D7",
+            },
+          ]}
+        >
           <Ionicons name="pricetag" size={16} color="#C1121F" />
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.offerText}>{restaurant.offer}</Text>
-            <Text style={styles.offerSub}>Terms & conditions apply</Text>
+            <Text style={[styles.offerSub, { color: theme.muted }]}>
+              Terms & conditions apply
+            </Text>
           </View>
         </View>
       )}

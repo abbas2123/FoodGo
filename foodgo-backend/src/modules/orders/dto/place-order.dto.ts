@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsArray,
   IsInt,
   IsNotEmpty,
@@ -31,6 +32,7 @@ export class PlaceOrderDto {
 
   @ApiProperty({ type: [PlaceOrderItemDto] })
   @IsArray()
+  @ArrayMinSize(1, { message: 'Order must contain at least one item' })
   @ValidateNested({ each: true })
   @Type(() => PlaceOrderItemDto)
   items: PlaceOrderItemDto[];
@@ -39,6 +41,10 @@ export class PlaceOrderDto {
   @IsOptional()
   @IsString()
   addressId?: string;
+
+  @ApiPropertyOptional({ description: 'Delivery address ID alternative' })
+  @IsOptional()
+  deliveryAddressId?: string | number;
 
   @ApiPropertyOptional({ description: 'Special instructions for the order' })
   @IsOptional()

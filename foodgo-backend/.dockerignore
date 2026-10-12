@@ -1,0 +1,58 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# foodgo-backend .dockerignore
+#
+# Excludes files that must not be included in the Docker build context.
+# Rules are evaluated top-to-bottom; later rules can re-include excluded items.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Secrets and environment files ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Local dependency installations ────────────────────────────────────────────
+# Rebuilt inside the image with npm ci
+node_modules
+
+# ── Compiled output ───────────────────────────────────────────────────────────
+# Rebuilt inside the image with nest build
+dist
+
+# ── Test infrastructure ───────────────────────────────────────────────────────
+test
+coverage
+.nyc_output
+**/*.spec.ts
+**/*.e2e-spec.ts
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+logs
+*.log
+npm-debug.log*
+
+# ── OS and editor artifacts ───────────────────────────────────────────────────
+.DS_Store
+.idea
+.vscode
+*.sublime-workspace
+
+# ── Git metadata ─────────────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ── TypeScript incremental build cache ───────────────────────────────────────
+*.tsbuildinfo
+
+# ── Local temp files ─────────────────────────────────────────────────────────
+.tmp
+.temp
+
+# ── Generated Prisma Client ───────────────────────────────────────────────────
+# Regenerated inside the builder stage via prisma generate.
+# The prisma/ schema and migrations directories are intentionally NOT excluded
+# because they are required by prisma generate (builder) and prisma migrate deploy.
+src/generated
+
+# ── README and documentation ─────────────────────────────────────────────────
+README.md
+CHANGELOG.md

@@ -128,7 +128,7 @@ export const MOCK_ORDERS: Order[] = [
       taxes: 185,
       discount: 0,
       grandTotal: 2184,
-      currencySymbol: "$",
+      currencySymbol: "₹",
     },
     deliveryAddress: {
       label: "Home",

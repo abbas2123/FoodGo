@@ -415,7 +415,6 @@ export default function AddAddress({ visible, closeModal, editAddress }: Props) 
           longitude: finalLng,
           is_default: isDefault,
         };
-        console.log("Updating address:", payload);
         await dispatch(updateAddress({ id: editAddress.id, dto: payload })).unwrap();
       } else {
         const payload: CreateAddressDto = {
@@ -431,7 +430,6 @@ export default function AddAddress({ visible, closeModal, editAddress }: Props) 
           longitude: finalLng,
           is_default: isDefault,
         };
-        console.log("Creating address:", payload);
         await dispatch(addAddress(payload)).unwrap();
       }
 

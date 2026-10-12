@@ -13,13 +13,16 @@ import { useAppSelector } from "@/hooks/useAppSelector";
 import { AppStackParamList } from "@/navigation/types";
 import { CartModal } from "@/components/common/CartModal";
 import { useActiveRouteName } from "@/navigation/NavigationRouteContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { formatINR } from "@/utils/currency";
 
 type Nav = NativeStackNavigationProp<AppStackParamList>;
 
 // Routes where the floating cart bar must never appear
-const HIDDEN_ON_ROUTES = new Set(["Checkout", "RestaurantDetails"]);
+const HIDDEN_ON_ROUTES = new Set(["Checkout", "OrderDetails", "TrackOrderDetails"]);
 
 export function GlobalCartBar() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
   const totalCount = useAppSelector((state) => state.cart.totalCount);
   const totalAmount = useAppSelector((state) => state.cart.totalAmount);
@@ -31,8 +34,9 @@ export function GlobalCartBar() {
   // that exists between onStateChange firing and Layout re-rendering.
   const activeRoute = useActiveRouteName();
   const isHiddenRoute = HIDDEN_ON_ROUTES.has(activeRoute);
-
-
+  const isDetailRoute =
+    activeRoute === "RestaurantDetails" || activeRoute === "ProductDetails";
+  const bottomPadding = isDetailRoute ? Math.max(insets.bottom, 14) : 10;
 
   const translateY = useRef(new Animated.Value(totalCount > 0 ? 0 : 120)).current;
   const prevCount = useRef(totalCount);
@@ -60,7 +64,7 @@ export function GlobalCartBar() {
     prevCount.current = totalCount;
   }, [totalCount, translateY]);
 
-  // Never render on Checkout or RestaurantDetails
+  // Never render on Checkout or Order tracking
   if (isHiddenRoute) return null;
 
   if (totalCount === 0 && !isModalVisible) return null;
@@ -69,7 +73,10 @@ export function GlobalCartBar() {
     <>
       {totalCount > 0 && (
         <Animated.View
-          style={[styles.container, { transform: [{ translateY }] }]}
+          style={[
+            styles.container,
+            { transform: [{ translateY }], paddingBottom: bottomPadding },
+          ]}
         >
           <Pressable
             style={styles.bar}
@@ -84,7 +91,7 @@ export function GlobalCartBar() {
                 <Text style={styles.itemsText}>
                   {totalCount} {totalCount === 1 ? "item" : "items"}
                 </Text>
-                <Text style={styles.amountText}>${totalAmount.toFixed(2)}</Text>
+                <Text style={styles.amountText}>{formatINR(totalAmount)}</Text>
               </View>
             </View>
 

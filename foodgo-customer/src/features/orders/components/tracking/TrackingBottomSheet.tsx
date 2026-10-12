@@ -20,6 +20,10 @@ interface TrackingBottomSheetProps {
   etaText?: string;
   distanceText?: string;
   deliveryPartner?: DeliveryPartner;
+  isDriverAssigned?: boolean;
+  hasDriverLocation?: boolean;
+  isLocationStale?: boolean;
+  driverUpdatedAt?: string | null;
   onViewOrderDetails?: () => void;
 }
 
@@ -63,6 +67,10 @@ export const TrackingBottomSheet: React.FC<TrackingBottomSheetProps> =
       etaText = "10–15 min",
       distanceText = "2.4 km away",
       deliveryPartner,
+      isDriverAssigned = false,
+      hasDriverLocation = false,
+      isLocationStale = false,
+      driverUpdatedAt,
       onViewOrderDetails,
     }) => {
       const { theme } = useTheme();
@@ -188,27 +196,71 @@ export const TrackingBottomSheet: React.FC<TrackingBottomSheetProps> =
                     ]}
                   >
                     {" "}
-                    {deliveryPartner.rating} • {deliveryPartner.totalDeliveries}+
-                    deliveries
+                    {deliveryPartner.rating}
                   </Text>
                 </View>
               </View>
 
               {/* Call Action Button */}
-              <Pressable
-                onPress={handleCall}
-                style={({ pressed }) => [
-                  styles.callButton,
-                  {
-                    backgroundColor: theme.primary,
-                    transform: [{ scale: pressed ? 0.94 : 1 }],
-                  },
+              {deliveryPartner.phone && (
+                <Pressable
+                  onPress={handleCall}
+                  style={({ pressed }) => [
+                    styles.callButton,
+                    {
+                      backgroundColor: theme.primary,
+                      transform: [{ scale: pressed ? 0.94 : 1 }],
+                    },
+                  ]}
+                  hitSlop={8}
+                >
+                  <Ionicons name="call" size={18} color="#FFFFFF" />
+                  <Text style={styles.callButtonText}>Call</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+
+          {/* Waiting for Driver Assignment Card */}
+          {!deliveryPartner && (status === "CONFIRMED" || status === "PREPARING" || status === "OUT_FOR_DELIVERY") && (
+            <View
+              style={[
+                styles.partnerCard,
+                {
+                  backgroundColor: theme.inputBackground,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.partnerAvatarFallback,
+                  { backgroundColor: theme.skeleton },
                 ]}
-                hitSlop={8}
               >
-                <Ionicons name="call" size={18} color="#FFFFFF" />
-                <Text style={styles.callButtonText}>Call</Text>
-              </Pressable>
+                <Ionicons name="bicycle-outline" size={24} color={theme.muted} />
+              </View>
+              <View style={styles.partnerInfo}>
+                <Text style={[styles.partnerRole, { color: theme.secondaryText }]}>
+                  Delivery Partner
+                </Text>
+                <Text style={[styles.partnerName, { color: theme.text }]}>
+                  Assigning nearby partner...
+                </Text>
+                <Text style={[styles.ratingText, { color: theme.muted, marginTop: 2 }]}>
+                  Live location will appear once courier is on the road
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Stale Location Notice */}
+          {isLocationStale && hasDriverLocation && (
+            <View style={styles.statusNoticeBox}>
+              <Ionicons name="time-outline" size={14} color="#D97706" />
+              <Text style={styles.statusNoticeText}>
+                Live GPS signal paused • Last pinged {driverUpdatedAt ? new Date(driverUpdatedAt).toLocaleTimeString() : 'recently'}
+              </Text>
             </View>
           )}
 
@@ -427,5 +479,21 @@ const styles = StyleSheet.create({
   viewDetailsText: {
     fontSize: 13,
     fontWeight: "700",
+  },
+  statusNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    marginBottom: 8,
+  },
+  statusNoticeText: {
+    fontSize: 12,
+    color: "#92400E",
+    fontWeight: "500",
+    flex: 1,
   },
 });

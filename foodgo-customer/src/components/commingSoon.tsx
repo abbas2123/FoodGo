@@ -1,17 +1,21 @@
+import React from "react";
 import { Text, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/theme/useTheme";
 
 export default function ComingSoon() {
+  const { theme } = useTheme();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="time-outline" size={55} color="#DD3339" />
+        <View style={[styles.iconContainer, { backgroundColor: theme.primaryLight }]}>
+          <Ionicons name="time-outline" size={55} color={theme.primary} />
         </View>
 
-        <Text style={styles.title}>Coming Soon</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Coming Soon</Text>
 
-        <Text style={styles.description}>
+        <Text style={[styles.description, { color: theme.secondaryText }]}>
           We're working on something amazing.
           {"\n"}
           Stay tuned!
@@ -24,7 +28,6 @@ export default function ComingSoon() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF9F7",
   },
 
   content: {
@@ -38,7 +41,6 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: "#FFE5E2",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 25,
@@ -47,7 +49,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: "700",
-    color: "#222222",
     marginBottom: 12,
   },
 
@@ -55,6 +56,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     textAlign: "center",
-    color: "#777777",
   },
 });

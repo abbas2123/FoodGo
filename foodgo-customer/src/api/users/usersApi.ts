@@ -46,6 +46,13 @@ export const usersApi = {
     return response.data;
   },
 
+  deleteAccount: async (): Promise<ApiResponse<{ message: string }>> => {
+    const response = await apiClient.delete<ApiResponse<{ message: string }>>(
+      API_ENDPOINTS.USER.PROFILE,
+    );
+    return response.data;
+  },
+
   getAddresses: addressApi.getAddresses,
   createAddress: addressApi.createAddress,
   updateAddress: addressApi.updateAddress,

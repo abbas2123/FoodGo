@@ -11,6 +11,10 @@ import { useTheme } from '../theme/useTheme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+import { fetchCart } from '../store/slices/cartSlice';
+import { fetchFavorites } from '../store/slices/favoritesSlice';
+import { fetchNotifications } from '../store/slices/notificationsSlice';
+
 export const RootNavigator = () => {
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
@@ -22,6 +26,15 @@ export const RootNavigator = () => {
       setIsBootstrapping(false);
     });
   }, [dispatch]);
+
+  useEffect(() => {
+    if (isAuthenticated && !isBootstrapping) {
+      dispatch(fetchCart());
+      dispatch(fetchFavorites());
+      dispatch(fetchNotifications());
+    }
+  }, [isAuthenticated, isBootstrapping, dispatch]);
+
 
   if (isBootstrapping) {
     return (

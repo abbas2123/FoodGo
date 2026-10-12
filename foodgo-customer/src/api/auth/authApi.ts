@@ -1,9 +1,10 @@
-import { apiClient, ApiResponse } from '../client/apiClient';
+import { apiClient, refreshClient, ApiResponse } from '../client/apiClient';
 import { API_ENDPOINTS } from '../client/apiConfig';
 
 export interface UserDto {
   id: string;
-  phone: string;
+  email: string;
+  phone?: string | null;
   name: string | null;
   type: string;
   status: string;
@@ -25,24 +26,26 @@ export interface RefreshTokenResponseData {
 }
 
 export const authApi = {
-  async sendOtp(phone: string): Promise<ApiResponse<null>> {
+  /** Request an email OTP to be sent to the provided address. */
+  async sendOtp(email: string): Promise<ApiResponse<null>> {
     const response = await apiClient.post<ApiResponse<null>>(
       API_ENDPOINTS.AUTH.SEND_OTP,
-      { phone },
+      { email },
     );
     return response.data;
   },
 
-  async verifyOtp(phone: string, otp: string): Promise<ApiResponse<VerifyOtpResponseData>> {
+  /** Verify the OTP for the given email address. */
+  async verifyOtp(email: string, otp: string): Promise<ApiResponse<VerifyOtpResponseData>> {
     const response = await apiClient.post<ApiResponse<VerifyOtpResponseData>>(
       API_ENDPOINTS.AUTH.VERIFY_OTP,
-      { phone, otp },
+      { email, otp },
     );
     return response.data;
   },
 
   async refreshToken(refreshToken: string): Promise<ApiResponse<RefreshTokenResponseData>> {
-    const response = await apiClient.post<ApiResponse<RefreshTokenResponseData>>(
+    const response = await refreshClient.post<ApiResponse<RefreshTokenResponseData>>(
       API_ENDPOINTS.AUTH.REFRESH_TOKEN,
       { refreshToken },
     );
@@ -50,7 +53,7 @@ export const authApi = {
   },
 
   async logout(refreshToken: string): Promise<ApiResponse<null>> {
-    const response = await apiClient.post<ApiResponse<null>>(
+    const response = await refreshClient.post<ApiResponse<null>>(
       API_ENDPOINTS.AUTH.LOGOUT,
       { refreshToken },
     );

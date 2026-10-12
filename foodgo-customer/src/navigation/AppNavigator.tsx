@@ -12,6 +12,9 @@ import OrdersPage from "@/features/orders/screens/OrdersScreen";
 import TrackingOrderPage from "@/features/orders/screens/OrderTrackingScreen";
 import OrderDetailsScreen from "@/features/orders/screens/OrderDetailsScreen";
 import FavoritesScreen from "@/features/favorites/screens/FavoritesScreen";
+import ProductDetailScreen from "@/features/restaurants/screens/ProductDetailScreen";
+import PrivacyPolicyScreen from "@/features/profile/screens/PrivacyPolicyScreen";
+import TermsOfServiceScreen from "@/features/profile/screens/TermsOfServiceScreen";
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
@@ -24,6 +27,10 @@ export const AppNavigator = () => {
           name="RestaurantDetails"
           component={RestaurantDetailScreen}
         />
+        <Stack.Screen
+          name="ProductDetails"
+          component={ProductDetailScreen}
+        />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="Orders" component={OrdersPage} />
         <Stack.Screen name="Search" component={SearchPage} />
@@ -32,6 +39,8 @@ export const AppNavigator = () => {
         <Stack.Screen name="EditProfile" component={ComingSoon} />
         <Stack.Screen name="TrackOrderDetails" component={TrackingOrderPage} />
         <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+        <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
       </Stack.Navigator>
     </Layout>
   );

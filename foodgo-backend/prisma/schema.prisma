@@ -5,8 +5,12 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
+  // "native"                      — resolves to the current platform binary (macOS for local dev)
+  // "linux-musl-openssl-3.0.x"   — Alpine Linux (musl libc) for Docker/staging
+  // "linux-arm64-openssl-3.0.x"  — Alpine on ARM64 (uncomment if deploying to ARM hosts)
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -64,6 +68,14 @@ model User {
 
   paymentMethods UserPaymentMethod[]
 
+  notifications Notification[]
+
+  searchHistories SearchHistory[]
+
+  orderStatusChanges OrderStatusHistory[]
+
+  paymentTransactions PaymentTransaction[]
+
   @@index([status])
 
   @@map("users")
@@ -76,9 +88,13 @@ model UserAuth {
 
   userId   BigInt @unique @map("user_id")
 
-  phone         String  @unique @db.VarChar(20)
+  phone         String? @unique @db.VarChar(20)
 
   phoneVerified Boolean @default(false) @map("phone_verified")
+
+  email         String? @unique @db.VarChar(255)
+
+  emailVerified Boolean @default(false) @map("email_verified")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -88,6 +104,8 @@ model UserAuth {
 
   @@index([phone])
 
+  @@index([email])
+
   @@map("user_auth")
 
 }
@@ -96,7 +114,9 @@ model OtpVerification {
 
   id       BigInt @id @default(autoincrement())
 
-  phone    String @db.VarChar(20)
+  phone    String? @db.VarChar(20)
+
+  email    String? @db.VarChar(255)
 
   purpose  String @db.VarChar(50)
 
@@ -114,11 +134,15 @@ model OtpVerification {
 
   @@index([phone])
 
+  @@index([email])
+
   @@index([purpose])
 
   @@index([expiresAt])
 
   @@index([phone, purpose])
+
+  @@index([email, purpose])
 
   @@map("otp_verifications")
 
@@ -171,6 +195,65 @@ model UserPaymentMethod {
   @@index([userId])
   @@map("user_payment_methods")
 }
+
+// ─── Payment Transactions ─────────────────────────────────────────────────────
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentProvider {
+  RAZORPAY
+  COD
+  WALLET
+}
+
+model PaymentTransaction {
+  id                BigInt          @id @default(autoincrement())
+  orderId           Int             @map("order_id")
+  userId            BigInt          @map("user_id")
+  provider          PaymentProvider @default(RAZORPAY)
+  providerOrderId   String?         @unique @map("provider_order_id") @db.VarChar(100)
+  providerPaymentId String?         @unique @map("provider_payment_id") @db.VarChar(100)
+  providerSignature String?         @map("provider_signature") @db.VarChar(255)
+  amount            Decimal         @db.Decimal(10, 2)
+  currency          String          @default("INR") @db.VarChar(5)
+  status            PaymentStatus   @default(CREATED)
+  method            String?         @db.VarChar(50)
+  failureCode       String?         @map("failure_code") @db.VarChar(100)
+  failureMessage    String?         @map("failure_message") @db.VarChar(500)
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  paidAt            DateTime?       @map("paid_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payment_transactions")
+}
+
+model ProcessedWebhookEvent {
+  id          BigInt          @id @default(autoincrement())
+  provider    PaymentProvider @default(RAZORPAY)
+  eventId     String          @map("event_id") @db.VarChar(100)
+  eventType   String          @map("event_type") @db.VarChar(100)
+  processedAt DateTime        @default(now()) @map("processed_at")
+
+  @@unique([provider, eventId])
+  @@index([processedAt])
+  @@map("processed_webhook_events")
+}
+
 model addresses {
   id            BigInt   @id @default(autoincrement())
   user_id       BigInt   @map("user_Id")
@@ -299,23 +382,38 @@ model Order {
   driverName          String?  @map("driver_name") @db.VarChar(100)
   driverPhone         String?  @map("driver_phone") @db.VarChar(20)
   driverRating        Decimal? @map("driver_rating") @db.Decimal(3, 1)
-  driverLat           Decimal? @map("driver_lat") @db.Decimal(10, 7)
-  driverLng           Decimal? @map("driver_lng") @db.Decimal(10, 7)
-  driverHeading       Int?     @map("driver_heading")
+  driverLat           Decimal?  @map("driver_lat") @db.Decimal(10, 7)
+  driverLng           Decimal?  @map("driver_lng") @db.Decimal(10, 7)
+  driverHeading       Int?      @map("driver_heading")
+  driverUpdatedAt     DateTime? @map("driver_updated_at")
 
-  specialInstructions String? @db.VarChar(500) @map("special_instructions")
+  specialInstructions String?   @db.VarChar(500) @map("special_instructions")
+  checkoutGroupId     String? @map("checkout_group_id") @db.VarChar(50)
 
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  completedAt DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  completedAt      DateTime? @map("completed_at")
+  confirmedAt      DateTime? @map("confirmed_at")
+  preparingAt      DateTime? @map("preparing_at")
+  outForDeliveryAt DateTime? @map("out_for_delivery_at")
+  deliveredAt      DateTime? @map("delivered_at")
+  cancelledAt      DateTime? @map("cancelled_at")
 
-  restaurant Restaurant  @relation(fields: [restaurantId], references: [id])
-  address    addresses?  @relation(fields: [addressId], references: [id])
-  items      OrderItem[]
-  review     Review?
+  restaurant    Restaurant           @relation(fields: [restaurantId], references: [id])
+  address       addresses?           @relation(fields: [addressId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  items         OrderItem[]
+  review        Review?
+  notifications Notification[]
+  statusHistory OrderStatusHistory[]
+  paymentTransactions PaymentTransaction[]
 
   @@index([userId])
+  @@index([userId, status])
   @@index([status])
+  @@index([status, createdAt])
+  @@index([restaurantId])
+  @@index([checkoutGroupId])
+  @@index([createdAt])
   @@map("orders")
 }
 
@@ -394,6 +492,61 @@ model CartItem {
   cart                Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   menuItem            MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
+  @@unique([cartId, menuItemId])
   @@index([cartId])
   @@map("cart_items")
+}
+
+// ─── Notifications ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  title     String   @db.VarChar(200)
+  message   String   @db.VarChar(500)
+  type      String   @default("ORDER_UPDATE") @db.VarChar(50)
+  isRead    Boolean  @default(false) @map("is_read")
+  orderId   Int?     @map("order_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ─── Search History ───────────────────────────────────────────────────────────
+
+model SearchHistory {
+  id        Int      @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  query     String   @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, query])
+  @@index([userId])
+  @@map("search_history")
+}
+
+// ─── Order Status History ─────────────────────────────────────────────────────
+
+model OrderStatusHistory {
+  id              BigInt       @id @default(autoincrement())
+  orderId         Int          @map("order_id")
+  fromStatus      OrderStatus? @map("from_status")
+  toStatus        OrderStatus  @map("to_status")
+  changedByUserId BigInt?      @map("changed_by_user_id")
+  reason          String?      @db.VarChar(255)
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  order         Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedByUser User? @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("order_status_history")
 }

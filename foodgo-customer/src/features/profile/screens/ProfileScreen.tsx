@@ -1,17 +1,30 @@
 import React, { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  Alert,
+  ActivityIndicator,
+  Pressable,
+} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AppStackParamList } from "@/navigation/types";
 import { RootState, AppDispatch } from "../../../store";
-import { fetchProfileThunk, logoutThunk } from "../../../store/slices/authSlice";
+import {
+  fetchProfileThunk,
+  logoutThunk,
+  updateProfileThunk,
+  deleteAccountThunk,
+} from "../../../store/slices/authSlice";
 import { toggleTheme } from "../../../store/slices/themeSlice";
 import { toggleNotifications } from "../../../store/slices/uiSlice";
 import { selectDefaultAddress } from "../../../store/slices/addressSlice";
 import { useTheme } from "../../../theme/useTheme";
-import type { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 import ProfileHeader from "../components/ProfileHeader";
 import QuickActionGrid, { QuickAction } from "../components/QuickActionGrid";
@@ -44,6 +57,7 @@ export default function ProfileScreen() {
   const [isOpen, SetisOpen] = useState(false);
   const [isAddressOpen, setIsAddressOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch latest profile from backend on mount
   useEffect(() => {
@@ -158,10 +172,73 @@ export default function ProfileScreen() {
     },
   ];
 
+  // ─── Legal & Policies ──────────────────────────────────────────────
+  const legalItems: SettingItem[] = [
+    {
+      id: "privacy",
+      type: "chevron",
+      icon: "shield-checkmark-outline",
+      title: "Privacy Policy",
+      onPress: () => {
+        navigation.navigate("PrivacyPolicy");
+      },
+    },
+    {
+      id: "terms",
+      type: "chevron",
+      icon: "document-text-outline",
+      title: "Terms of Service",
+      onPress: () => {
+        navigation.navigate("TermsOfService");
+      },
+    },
+  ];
+
   // ─── Logout ────────────────────────────────────────────────────────
   const handleLogout = () => {
     dispatch(logoutThunk());
   };
+
+  // ─── Delete Account ────────────────────────────────────────────────
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to permanently delete your FoodiGo account? All your personal profile information, saved addresses, and payment methods will be erased. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setIsDeleting(true);
+              const resultAction = await dispatch(deleteAccountThunk());
+              if (deleteAccountThunk.fulfilled.match(resultAction)) {
+                Alert.alert(
+                  "Account Deleted",
+                  "Your account and associated personal data have been successfully deleted.",
+                );
+              } else {
+                const errorMsg =
+                  (resultAction.payload as string) ||
+                  "Unable to delete account at this time. Please check your internet connection or try again.";
+                Alert.alert("Deletion Error", errorMsg);
+              }
+            } catch (err: any) {
+              Alert.alert(
+                "Deletion Error",
+                err?.message ||
+                  "An unexpected error occurred while deleting your account.",
+              );
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const onEditPress = async () => {
     // Ask for gallery permission
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -181,11 +258,8 @@ export default function ProfileScreen() {
 
     if (!result.canceled) {
       const imageUri = result.assets[0].uri;
-
-      console.log("Selected image:", imageUri);
-
-      // Update your avatar state here
       setAvatar(imageUri);
+      dispatch(updateProfileThunk({ profileImageUrl: imageUri }));
     }
   };
 
@@ -201,8 +275,9 @@ export default function ProfileScreen() {
 
         <ProfileHeader
           name={user?.name ?? null}
-          phone={user?.phone ?? "—"}
-          avatarUri={avatar}
+          email={user?.email ?? ''}
+          phone={user?.phone ?? null}
+          avatarUri={avatar || user?.profileImageUrl || null}
           onEditPress={onEditPress}
           openEditModal={SetisOpen}
         />
@@ -236,7 +311,32 @@ export default function ProfileScreen() {
 
         <SettingsSection title="Help & Support" items={helpItems} />
 
+        <SettingsSection title="Legal & Policies" items={legalItems} />
+
         <LogOutButton onLogout={handleLogout} />
+
+        {/* Delete Account Action */}
+        <View style={styles.deleteAccountContainer}>
+          <Pressable
+            style={[
+              styles.deleteButton,
+              { borderColor: theme.border },
+              isDeleting && styles.disabledDeleteButton,
+            ]}
+            onPress={handleDeleteAccount}
+            disabled={isDeleting}
+            accessibilityLabel="Delete Account"
+          >
+            {isDeleting ? (
+              <ActivityIndicator size="small" color="#E63946" />
+            ) : (
+              <View style={styles.deleteRow}>
+                <Ionicons name="trash-outline" size={18} color="#E63946" />
+                <Text style={styles.deleteText}>Delete Account</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
       </ScrollView>
     </View>
   );
@@ -256,5 +356,28 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 20,
+  },
+  deleteAccountContainer: {
+    marginTop: 16,
+    alignItems: "center",
+  },
+  deleteButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  disabledDeleteButton: {
+    opacity: 0.6,
+  },
+  deleteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deleteText: {
+    color: "#E63946",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

@@ -5,7 +5,8 @@ export interface AuthTokens {
 
 export interface AuthenticatedUser {
   id: string;
-  phone: string;
+  email?: string | null;
+  phone?: string | null;
   name: string | null;
   type: string;
   status: string;

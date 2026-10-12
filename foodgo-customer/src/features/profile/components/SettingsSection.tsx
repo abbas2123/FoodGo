@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Switch } from "react-native";
+import { View, Text, StyleSheet, Switch, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../theme/useTheme";
 
@@ -33,32 +33,56 @@ export default function SettingsSection({ title, items }: Props) {
     <>
       <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
       <View style={[styles.listCard, { backgroundColor: theme.card }]}>
-        {items.map((item, index) => (
-          <View
-            key={item.id}
-            style={[
-              styles.row,
-              index < items.length - 1 && {
-                borderBottomWidth: StyleSheet.hairlineWidth,
-                borderBottomColor: theme.border,
-              },
-            ]}
-          >
-            <View style={styles.left}>
-              <View style={[styles.iconCircle, { backgroundColor: theme.primaryLight }]}>
-                <Ionicons name={item.icon} size={18} color={theme.primary} />
-              </View>
-              <Text style={[styles.rowTitle, { color: theme.text }]}>{item.title}</Text>
-            </View>
+        {items.map((item, index) => {
+          const isLast = index === items.length - 1;
+          const borderStyle = !isLast && {
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: theme.border,
+          };
 
-            {item.type === "toggle" ? (
-              <Switch
-                value={item.value}
-                onValueChange={item.onToggle}
-                trackColor={{ false: theme.border, true: theme.primary }}
-                thumbColor="#fff"
-              />
-            ) : (
+          if (item.type === "toggle") {
+            return (
+              <View
+                key={item.id}
+                style={[styles.row, borderStyle]}
+              >
+                <View style={styles.left}>
+                  <View style={[styles.iconCircle, { backgroundColor: theme.primaryLight }]}>
+                    <Ionicons name={item.icon} size={18} color={theme.primary} />
+                  </View>
+                  <Text style={[styles.rowTitle, { color: theme.text }]}>{item.title}</Text>
+                </View>
+
+                <Switch
+                  value={item.value}
+                  onValueChange={item.onToggle}
+                  trackColor={{ false: theme.border, true: theme.primary }}
+                  thumbColor="#fff"
+                />
+              </View>
+            );
+          }
+
+          return (
+            <Pressable
+              key={item.id}
+              onPress={item.onPress}
+              disabled={!item.onPress}
+              style={({ pressed }) => [
+                styles.row,
+                borderStyle,
+                pressed && { opacity: 0.7 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={item.title}
+            >
+              <View style={styles.left}>
+                <View style={[styles.iconCircle, { backgroundColor: theme.primaryLight }]}>
+                  <Ionicons name={item.icon} size={18} color={theme.primary} />
+                </View>
+                <Text style={[styles.rowTitle, { color: theme.text }]}>{item.title}</Text>
+              </View>
+
               <View style={styles.rightContent}>
                 {item.value ? (
                   <Text style={[styles.valueText, { color: theme.secondaryText }]}>
@@ -67,9 +91,9 @@ export default function SettingsSection({ title, items }: Props) {
                 ) : null}
                 <Ionicons name="chevron-forward" size={18} color={theme.muted} />
               </View>
-            )}
-          </View>
-        ))}
+            </Pressable>
+          );
+        })}
       </View>
     </>
   );

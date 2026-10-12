@@ -10,11 +10,36 @@ export interface PlaceOrderItemPayload {
 
 export interface PlaceOrderPayload {
   restaurantId: number;
+  addressId?: string;
   deliveryAddressId?: number;
   deliveryAddressText?: string;
   paymentMethod?: string;
   specialInstructions?: string;
   items: PlaceOrderItemPayload[];
+}
+
+export interface CheckoutRestaurantOrder {
+  restaurantId: number;
+  items: PlaceOrderItemPayload[];
+  specialInstructions?: string;
+}
+
+export interface CheckoutPayload {
+  orders?: CheckoutRestaurantOrder[];
+  addressId?: string;
+  deliveryAddressId?: number | string;
+  deliveryAddressText?: string;
+  paymentMethod?: string;
+  specialInstructions?: string;
+}
+
+export interface CheckoutResponseData {
+  checkoutGroupId: string;
+  orders: any[];
+  primaryOrderId: number;
+  orderId: number;
+  orderNumber: string;
+  totalAmount: number;
 }
 
 export function adaptBackendOrder(raw: any): Order {
@@ -101,6 +126,16 @@ export const ordersApi = {
       ...response.data,
       data: adaptBackendOrder(response.data.data),
     };
+  },
+
+  checkout: async (
+    payload: CheckoutPayload,
+  ): Promise<ApiResponse<CheckoutResponseData>> => {
+    const response = await apiClient.post<ApiResponse<CheckoutResponseData>>(
+      API_ENDPOINTS.ORDERS.CHECKOUT,
+      payload,
+    );
+    return response.data;
   },
 
   cancelOrder: async (id: string | number): Promise<ApiResponse<Order>> => {

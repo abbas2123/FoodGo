@@ -45,7 +45,7 @@ const NEARBY_RESTAURANTS: Restaurant[] = [
     cuisine: "Indian • Curry",
     rating: 4.6,
     deliveryTime: "20-30 min",
-    deliveryFee: "$1.99",
+    deliveryFee: "₹40",
     image:
       "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=300&q=80",
     distance: "0.9 km",
@@ -67,7 +67,7 @@ const NEARBY_RESTAURANTS: Restaurant[] = [
     cuisine: "Italian • Pizza",
     rating: 4.7,
     deliveryTime: "20-30 min",
-    deliveryFee: "$0.99",
+    deliveryFee: "₹20",
     image:
       "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&q=80",
     distance: "1.5 km",

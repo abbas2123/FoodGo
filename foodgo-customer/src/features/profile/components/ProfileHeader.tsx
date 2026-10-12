@@ -12,7 +12,8 @@ import { useTheme } from "../../../theme/useTheme";
 
 interface Props {
   name: string | null;
-  phone: string;
+  email: string;
+  phone?: string | null;
   avatarUri?: string | null;
   onEditPress?: () => void;
   openEditModal: (value: boolean) => void;
@@ -20,6 +21,7 @@ interface Props {
 
 export default function ProfileHeader({
   name,
+  email,
   phone,
   avatarUri,
   onEditPress,
@@ -27,12 +29,18 @@ export default function ProfileHeader({
 }: Props) {
   const { theme } = useTheme();
 
-  const initials = (name ?? phone)
-    .split(" ")
+  const displayName = name ?? null;
+  // Initials: prefer name; fall back to email prefix (before @)
+  const initialsSource = name || (email ? email.split('@')[0] : 'G');
+  const initials = initialsSource
+    .split(' ')
     .map((w) => w[0])
-    .join("")
+    .join('')
     .toUpperCase()
     .slice(0, 2);
+
+  // Show email as primary contact; phone as secondary if available
+  const contactLine = email || phone || '—';
 
   return (
     <View style={[styles.profileCard, { backgroundColor: theme.card }]}>
@@ -52,10 +60,10 @@ export default function ProfileHeader({
       </View>
 
       <Text style={[styles.name, { color: theme.text }]}>
-        {name ?? "Guest"}
+        {displayName ?? 'Guest'}
       </Text>
       <Text style={[styles.phone, { color: theme.secondaryText }]}>
-        {phone}
+        {contactLine}
       </Text>
 
       <Pressable

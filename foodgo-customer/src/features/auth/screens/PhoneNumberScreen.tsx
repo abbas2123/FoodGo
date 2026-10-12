@@ -14,18 +14,22 @@ import { spacing, typography, radius } from "../../../theme";
 import { authApi } from "../../../api/auth/authApi";
 import { useTheme } from "../../../theme/useTheme";
 
+/** Simple RFC-compliant email validation. */
+const isValidEmail = (value: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
 export const PhoneNumberScreen: React.FC<AuthScreenProps<"PhoneNumber">> = ({
   navigation,
 }) => {
   const { theme } = useTheme();
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleContinue = async () => {
-    const trimmedPhone = phoneNumber.trim();
-    if (trimmedPhone.length < 6) {
-      setErrorMessage("Please enter a valid phone number (at least 6 digits).");
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!isValidEmail(trimmedEmail)) {
+      setErrorMessage("Please enter a valid email address.");
       return;
     }
 
@@ -33,8 +37,8 @@ export const PhoneNumberScreen: React.FC<AuthScreenProps<"PhoneNumber">> = ({
     setErrorMessage(null);
 
     try {
-      await authApi.sendOtp(trimmedPhone);
-      navigation.navigate("OtpVerification", { phoneNumber: trimmedPhone });
+      await authApi.sendOtp(trimmedEmail);
+      navigation.navigate("OtpVerification", { email: trimmedEmail });
     } catch (error: any) {
       const msg =
         error?.message || "Failed to send verification code. Please try again.";
@@ -59,10 +63,10 @@ export const PhoneNumberScreen: React.FC<AuthScreenProps<"PhoneNumber">> = ({
 
         <View style={styles.content}>
           <Text style={[styles.title, { color: theme.text }]}>
-            Enter your phone number
+            Enter your email
           </Text>
           <Text style={[styles.subtitle, { color: theme.muted }]}>
-            We'll send you a verification code to confirm your number.
+            We'll send you a one-time verification code to confirm your email address.
           </Text>
 
           <View
@@ -76,16 +80,21 @@ export const PhoneNumberScreen: React.FC<AuthScreenProps<"PhoneNumber">> = ({
           >
             <TextInput
               style={[styles.input, { color: theme.text }]}
-              placeholder="+91 1234567898"
+              placeholder="you@example.com"
               placeholderTextColor={theme.muted}
-              keyboardType="phone-pad"
-              value={phoneNumber}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              value={email}
               onChangeText={(text) => {
-                setPhoneNumber(text);
+                setEmail(text);
                 if (errorMessage) setErrorMessage(null);
               }}
               autoFocus
               editable={!loading}
+              accessibilityLabel="Email address input"
             />
           </View>
 
@@ -98,7 +107,7 @@ export const PhoneNumberScreen: React.FC<AuthScreenProps<"PhoneNumber">> = ({
           <Button
             title="Continue"
             onPress={handleContinue}
-            disabled={phoneNumber.trim().length < 6 || loading}
+            disabled={!isValidEmail(email) || loading}
             loading={loading}
             size="lg"
           />

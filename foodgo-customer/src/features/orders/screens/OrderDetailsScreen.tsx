@@ -20,6 +20,7 @@ import {
   TextInput,
   Alert,
   Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -37,7 +38,8 @@ import {
   submitOrderReview,
   reorderPastOrder,
 } from "@/store/slices/ordersSlice";
-import { addToCart } from "@/store/slices/cartSlice";
+import { addToCart, addCartItemServer } from "@/store/slices/cartSlice";
+import { formatINR } from "@/utils/currency";
 
 // ─── Route type ─────────────────────────────────────────────────────────────
 
@@ -208,9 +210,7 @@ function OrderItemRow({
           )}
         </View>
         <Text style={[itemStyles.price, { color: colors.text }]}>
-          {item.quantity * item.price > 999
-            ? `$${((item.quantity * item.price) / 100).toFixed(2)}`
-            : `₹${item.quantity * item.price}`}
+          {formatINR(item.quantity * item.price)}
         </Text>
       </View>
       {showDivider && (
@@ -366,6 +366,11 @@ const billRowStyles = StyleSheet.create({
 
 export default function OrderDetailsScreen() {
   const { theme, isDark } = useTheme();
+  const cardThemedStyle = {
+    backgroundColor: theme.surface,
+    borderColor: theme.border,
+    borderWidth: isDark ? 1 : 0,
+  };
   const navigation =
     useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const route = useRoute<OrderDetailsRouteProp>();
@@ -441,6 +446,12 @@ export default function OrderDetailsScreen() {
               quantity: item.quantity,
             }),
           );
+          dispatch(
+            addCartItemServer({
+              menuItemId: parseInt(item.id, 10),
+              quantity: item.quantity,
+            }),
+          );
         });
         if (result.unavailableCount > 0) {
           Alert.alert(
@@ -485,6 +496,10 @@ export default function OrderDetailsScreen() {
   if (!order) {
     return (
       <View style={[screenStyles.root, { backgroundColor: theme.background }]}>
+        <StatusBar
+          barStyle={isDark ? "light-content" : "dark-content"}
+          backgroundColor={theme.surface}
+        />
         <View style={[screenStyles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
           <Pressable onPress={() => navigation.goBack()} style={screenStyles.backBtn} hitSlop={12}>
             <Ionicons name="arrow-back" size={22} color={theme.primary} />
@@ -506,14 +521,16 @@ export default function OrderDetailsScreen() {
   const completed = isCompletedOrder(order.status);
   const cancelled = order.status === "CANCELLED";
 
-  const sym = order.bill.currencySymbol;
-  const fmt = (n: number) =>
-    n >= 1000 ? `${sym}${(n / 100).toFixed(2)}` : `${sym}${n}`;
+  const fmt = (n: number) => formatINR(n);
 
   // ─── ACTIVE layout ────────────────────────────────────────────────────────
   if (active) {
     return (
       <View style={[screenStyles.root, { backgroundColor: theme.background }]}>
+        <StatusBar
+          barStyle={isDark ? "light-content" : "dark-content"}
+          backgroundColor={theme.surface}
+        />
         {/* Header */}
         <View style={[screenStyles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
           <Pressable onPress={() => navigation.goBack()} style={screenStyles.backBtn} hitSlop={12}>
@@ -528,7 +545,7 @@ export default function OrderDetailsScreen() {
           contentContainerStyle={screenStyles.scrollContent}
         >
           {/* Status banner */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+          <View style={[screenStyles.card, cardThemedStyle]}>
             <View style={screenStyles.statusRow}>
               <Text style={[screenStyles.statusHeading, { color: theme.text }]}>
                 {order.statusLabel}
@@ -563,7 +580,7 @@ export default function OrderDetailsScreen() {
           </View>
 
           {/* Restaurant info */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+          <View style={[screenStyles.card, cardThemedStyle]}>
             <View style={screenStyles.restaurantRow}>
               {order.restaurant.imageUrl ? (
                 <Image
@@ -606,7 +623,7 @@ export default function OrderDetailsScreen() {
           </View>
 
           {/* Your Order */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+          <View style={[screenStyles.card, cardThemedStyle]}>
             <Text style={[screenStyles.sectionTitle, { color: theme.text }]}>Your Order</Text>
             {order.items.map((item, idx) => (
               <OrderItemRow
@@ -627,7 +644,7 @@ export default function OrderDetailsScreen() {
           </View>
 
           {/* Bill Summary */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+          <View style={[screenStyles.card, cardThemedStyle]}>
             <Text style={[screenStyles.sectionTitle, { color: theme.text }]}>Bill Summary</Text>
             <BillRow label="Subtotal" value={fmt(order.bill.subtotal)} colors={theme} />
             <BillRow label="Delivery Fee" value={fmt(order.bill.deliveryFee)} colors={theme} />
@@ -650,7 +667,7 @@ export default function OrderDetailsScreen() {
           </View>
 
           {/* Delivery address */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+          <View style={[screenStyles.card, cardThemedStyle]}>
             <View style={screenStyles.infoRow}>
               <View style={[screenStyles.infoIcon, { backgroundColor: "#FDE9E820" }]}>
                 <Ionicons name="home-outline" size={18} color={theme.primary} />
@@ -667,7 +684,7 @@ export default function OrderDetailsScreen() {
           </View>
 
           {/* Payment method */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+          <View style={[screenStyles.card, cardThemedStyle]}>
             <View style={screenStyles.infoRow}>
               <View style={[screenStyles.infoIcon, { backgroundColor: "#22C55E20" }]}>
                 <Ionicons name="card-outline" size={18} color="#22C55E" />
@@ -728,12 +745,16 @@ export default function OrderDetailsScreen() {
 
     return (
       <View style={[screenStyles.root, { backgroundColor: theme.background }]}>
+        <StatusBar
+          barStyle={isDark ? "light-content" : "dark-content"}
+          backgroundColor={theme.surface}
+        />
         {/* Header */}
         <View style={[screenStyles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
           <Pressable onPress={() => navigation.goBack()} style={screenStyles.backBtn} hitSlop={12}>
             <Ionicons name="arrow-back" size={22} color={theme.primary} />
           </Pressable>
-          <Text style={[screenStyles.headerTitle, { color: theme.primary }]}>Order Details</Text>
+          <Text style={[screenStyles.headerTitle, { color: theme.text }]}>Order Details</Text>
           <View style={screenStyles.headerRight} />
         </View>
 
@@ -742,7 +763,7 @@ export default function OrderDetailsScreen() {
           contentContainerStyle={screenStyles.scrollContent}
         >
           {/* Delivered confirmation */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface, alignItems: "center", paddingVertical: 28 }]}>
+          <View style={[screenStyles.card, cardThemedStyle, { alignItems: "center", paddingVertical: 28 }]}>
             <View style={completedStyles.checkCircle}>
               <Ionicons name="checkmark-circle" size={56} color="#22C55E" />
             </View>
@@ -754,7 +775,7 @@ export default function OrderDetailsScreen() {
 
           {/* Rating card */}
           {!ratingSubmitted ? (
-            <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+            <View style={[screenStyles.card, cardThemedStyle]}>
               <Text style={[completedStyles.ratingTitle, { color: theme.text }]}>
                 How was your order?
               </Text>
@@ -783,7 +804,7 @@ export default function OrderDetailsScreen() {
               </Pressable>
             </View>
           ) : (
-            <View style={[screenStyles.card, { backgroundColor: theme.surface, alignItems: "center" }]}>
+            <View style={[screenStyles.card, cardThemedStyle, { alignItems: "center" }]}>
               <Ionicons name="star" size={32} color="#FFC107" />
               <Text style={[completedStyles.ratingTitle, { color: theme.text, marginTop: 8 }]}>
                 Rating Submitted — Thank you!
@@ -793,7 +814,7 @@ export default function OrderDetailsScreen() {
           )}
 
           {/* Restaurant + items */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+          <View style={[screenStyles.card, cardThemedStyle]}>
             <View style={screenStyles.restaurantRow}>
               {order.restaurant.imageUrl ? (
                 <Image
@@ -830,7 +851,7 @@ export default function OrderDetailsScreen() {
           </View>
 
           {/* Receipt */}
-          <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+          <View style={[screenStyles.card, cardThemedStyle]}>
             <Text style={[screenStyles.sectionTitle, { color: theme.text }]}>Receipt</Text>
             <BillRow label="Subtotal" value={fmt(order.bill.subtotal)} colors={theme} />
             <BillRow label="Delivery Fee" value={fmt(order.bill.deliveryFee)} colors={theme} />
@@ -857,8 +878,8 @@ export default function OrderDetailsScreen() {
             style={[completedStyles.reorderBtn, { backgroundColor: theme.primaryLight }]}
             onPress={handleReorder}
           >
-            <Ionicons name="refresh-outline" size={18} color={theme.primary} style={{ marginRight: 8 }} />
-            <Text style={[completedStyles.reorderText, { color: theme.primary }]}>Reorder</Text>
+            <Ionicons name="refresh-outline" size={18} color={isDark ? "#FFA2A2" : theme.primary} style={{ marginRight: 8 }} />
+            <Text style={[completedStyles.reorderText, { color: isDark ? "#FFA2A2" : theme.primary }]}>Reorder</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -868,6 +889,10 @@ export default function OrderDetailsScreen() {
   // ─── CANCELLED layout ─────────────────────────────────────────────────────
   return (
     <View style={[screenStyles.root, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor={theme.surface}
+      />
       {/* Header */}
       <View style={[screenStyles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <Pressable onPress={() => navigation.goBack()} style={screenStyles.backBtn} hitSlop={12}>
@@ -882,7 +907,7 @@ export default function OrderDetailsScreen() {
         contentContainerStyle={screenStyles.scrollContent}
       >
         {/* Cancelled status */}
-        <View style={[screenStyles.card, { backgroundColor: theme.surface, alignItems: "center", paddingVertical: 28 }]}>
+        <View style={[screenStyles.card, cardThemedStyle, { alignItems: "center", paddingVertical: 28 }]}>
           <View style={cancelledStyles.iconCircle}>
             <Ionicons name="close-circle" size={56} color="#EF4444" />
           </View>
@@ -895,7 +920,7 @@ export default function OrderDetailsScreen() {
         </View>
 
         {/* Restaurant + items */}
-        <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+        <View style={[screenStyles.card, cardThemedStyle]}>
           <View style={screenStyles.restaurantRow}>
             {order.restaurant.imageUrl ? (
               <Image
@@ -930,7 +955,7 @@ export default function OrderDetailsScreen() {
         </View>
 
         {/* Bill */}
-        <View style={[screenStyles.card, { backgroundColor: theme.surface }]}>
+        <View style={[screenStyles.card, cardThemedStyle]}>
           <Text style={[screenStyles.sectionTitle, { color: theme.text }]}>Bill Summary</Text>
           <BillRow label="Subtotal" value={fmt(order.bill.subtotal)} colors={theme} />
           <BillRow label="Delivery Fee" value={fmt(order.bill.deliveryFee)} colors={theme} />
@@ -952,8 +977,8 @@ export default function OrderDetailsScreen() {
           style={[completedStyles.reorderBtn, { backgroundColor: theme.primaryLight }]}
           onPress={handleReorder}
         >
-          <Ionicons name="refresh-outline" size={18} color={theme.primary} style={{ marginRight: 8 }} />
-          <Text style={[completedStyles.reorderText, { color: theme.primary }]}>Reorder</Text>
+          <Ionicons name="refresh-outline" size={18} color={isDark ? "#FFA2A2" : theme.primary} style={{ marginRight: 8 }} />
+          <Text style={[completedStyles.reorderText, { color: isDark ? "#FFA2A2" : theme.primary }]}>Reorder</Text>
         </Pressable>
       </ScrollView>
     </View>

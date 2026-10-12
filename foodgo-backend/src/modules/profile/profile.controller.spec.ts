@@ -4,6 +4,7 @@ import { ProfileService } from './profile.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
+import { PrismaService } from '../../prisma/prisma.service.js';
 
 describe('ProfileController', () => {
   let controller: ProfileController;
@@ -16,6 +17,7 @@ describe('ProfileController', () => {
     profileServiceMock = {
       getProfile: vi.fn(),
       updateProfile: vi.fn(),
+      deleteAccount: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -25,6 +27,7 @@ describe('ProfileController', () => {
         { provide: JwtService, useValue: { verifyAsync: vi.fn() } },
         { provide: ConfigService, useValue: { get: vi.fn() } },
         { provide: Reflector, useValue: { getAllAndOverride: vi.fn() } },
+        { provide: PrismaService, useValue: { user: { findUnique: vi.fn() } } },
       ],
     }).compile();
 
@@ -61,12 +64,27 @@ describe('ProfileController', () => {
     it('should call profileService.updateProfile with userId and dto', async () => {
       const mockReq = { user: { sub: '42' } };
       const dto = { name: 'Updated Name' };
-      profileServiceMock.updateProfile.mockResolvedValue({ id: '42', name: 'Updated Name' });
+      profileServiceMock.updateProfile = vi.fn().mockResolvedValue({ id: '42', name: 'Updated Name' });
 
       const result = await controller.updateProfile(mockReq, dto);
 
       expect(profileServiceMock.updateProfile).toHaveBeenCalledWith(42n, dto);
       expect(result).toEqual({ id: '42', name: 'Updated Name' });
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('should call profileService.deleteAccount with userId from req.user.sub', async () => {
+      const mockReq = { user: { sub: '42' } };
+      profileServiceMock.deleteAccount = vi.fn().mockResolvedValue({
+        success: true,
+        message: 'Account deleted successfully',
+      });
+
+      const result = await controller.deleteAccount(mockReq);
+
+      expect(profileServiceMock.deleteAccount).toHaveBeenCalledWith(42n);
+      expect(result).toEqual({ success: true, message: 'Account deleted successfully' });
     });
   });
 });

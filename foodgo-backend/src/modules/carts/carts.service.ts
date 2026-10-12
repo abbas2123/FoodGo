@@ -45,6 +45,7 @@ export class CartsService {
       where: { userId },
       include: {
         items: {
+          orderBy: { createdAt: 'asc' },
           include: {
             menuItem: {
               include: {
@@ -105,16 +106,20 @@ export class CartsService {
     let cart = await this.prisma.cart.findUnique({ where: { userId } });
 
     if (!cart) {
-      cart = await this.prisma.cart.create({
-        data: { userId, restaurantId: menuItem.restaurantId },
-      });
-    } else if (cart.restaurantId && cart.restaurantId !== menuItem.restaurantId) {
-      throw new ConflictException(
-        'You have items from a different restaurant in your cart. Clear the cart first.',
-      );
+      try {
+        cart = await this.prisma.cart.create({
+          data: { userId, restaurantId: menuItem.restaurantId },
+        });
+      } catch {
+        cart = await this.prisma.cart.findUnique({ where: { userId } });
+      }
     }
 
-    // Update restaurantId if not set
+    if (!cart) {
+      throw new BadRequestException('Failed to initialize cart');
+    }
+
+    // Multi-restaurant support: cart can contain items from multiple restaurants
     if (!cart.restaurantId) {
       cart = await this.prisma.cart.update({
         where: { userId },
@@ -122,21 +127,25 @@ export class CartsService {
       });
     }
 
-    // Add or increment item
-    const existingItem = await this.prisma.cartItem.findFirst({
-      where: { cartId: cart.id, menuItemId },
+    // Atomic upsert ensures multiple concurrent taps or different products are never duplicated or lost
+    await this.prisma.cartItem.upsert({
+      where: {
+        cartId_menuItemId: {
+          cartId: cart.id,
+          menuItemId,
+        },
+      },
+      update: {
+        quantity: { increment: quantity },
+        ...(specialInstructions ? { specialInstructions } : {}),
+      },
+      create: {
+        cartId: cart.id,
+        menuItemId,
+        quantity,
+        specialInstructions,
+      },
     });
-
-    if (existingItem) {
-      await this.prisma.cartItem.update({
-        where: { id: existingItem.id },
-        data: { quantity: existingItem.quantity + quantity },
-      });
-    } else {
-      await this.prisma.cartItem.create({
-        data: { cartId: cart.id, menuItemId, quantity, specialInstructions },
-      });
-    }
 
     return this.getCart(userId);
   }
@@ -147,13 +156,20 @@ export class CartsService {
     const cart = await this.prisma.cart.findUnique({ where: { userId } });
     if (!cart) throw new NotFoundException('Cart not found');
 
+    // Support looking up by either primary CartItem id or menuItemId for robust frontend sync
     const item = await this.prisma.cartItem.findFirst({
-      where: { id: cartItemId, cartId: cart.id },
+      where: {
+        cartId: cart.id,
+        OR: [
+          { id: cartItemId },
+          { menuItemId: cartItemId },
+        ],
+      },
     });
     if (!item) throw new NotFoundException('Cart item not found');
 
     if (quantity <= 0) {
-      await this.prisma.cartItem.delete({ where: { id: cartItemId } });
+      await this.prisma.cartItem.delete({ where: { id: item.id } });
       // Clear restaurantId if cart is now empty
       const remaining = await this.prisma.cartItem.count({ where: { cartId: cart.id } });
       if (remaining === 0) {
@@ -161,7 +177,7 @@ export class CartsService {
       }
     } else {
       await this.prisma.cartItem.update({
-        where: { id: cartItemId },
+        where: { id: item.id },
         data: { quantity },
       });
     }
@@ -197,39 +213,66 @@ export class CartsService {
   // ─── Serializer ──────────────────────────────────────────────────────────────
 
   private serializeCart(cart: any) {
-    const items = cart.items.map((ci: any) => ({
-      id: ci.id.toString(),
-      menuItemId: ci.menuItemId.toString(),
-      name: ci.menuItem.name,
-      price: Number(ci.menuItem.price),
-      quantity: ci.quantity,
-      image: ci.menuItem.imageUrl,
-      specialInstructions: ci.specialInstructions ?? null,
-      restaurantId: ci.menuItem.restaurantId.toString(),
-    }));
+    const items = cart.items.map((ci: any) => {
+      const rest = ci.menuItem.restaurant;
+      const deliveryFee = rest?.isFreeDelivery ? 0 : Number(rest?.deliveryFee ?? 0);
+      return {
+        id: ci.id.toString(),
+        menuItemId: ci.menuItemId.toString(),
+        name: ci.menuItem.name,
+        price: Number(ci.menuItem.price),
+        quantity: ci.quantity,
+        image: ci.menuItem.imageUrl,
+        specialInstructions: ci.specialInstructions ?? null,
+        restaurantId: ci.menuItem.restaurantId.toString(),
+        restaurantName: rest?.name ?? '',
+        restaurantImage: rest?.imageUrl ?? null,
+        deliveryFee,
+      };
+    });
 
-    const firstItem = cart.items[0];
-    const restaurant = firstItem?.menuItem?.restaurant;
+    // Group items by restaurant
+    const groupMap = new Map<string, any>();
+    for (const item of items) {
+      if (!groupMap.has(item.restaurantId)) {
+        groupMap.set(item.restaurantId, {
+          restaurantId: item.restaurantId,
+          restaurantName: item.restaurantName,
+          restaurantImage: item.restaurantImage,
+          deliveryFee: item.deliveryFee,
+          subtotal: 0,
+          items: [],
+        });
+      }
+      const group = groupMap.get(item.restaurantId);
+      group.subtotal = parseFloat((group.subtotal + item.price * item.quantity).toFixed(2));
+      group.items.push(item);
+    }
 
-    const subtotal = items.reduce(
-      (sum: number, item: any) => sum + item.price * item.quantity,
-      0,
+    const restaurantGroups = Array.from(groupMap.values());
+
+    const subtotal = parseFloat(
+      items.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0).toFixed(2),
     );
-    const deliveryFee = restaurant?.isFreeDelivery
-      ? 0
-      : Number(restaurant?.deliveryFee ?? 0);
+    // Total delivery fee is sum of distinct restaurant delivery fees in cart
+    const totalDeliveryFee = parseFloat(
+      restaurantGroups.reduce((sum: number, g: any) => sum + g.deliveryFee, 0).toFixed(2),
+    );
     const taxAmount = parseFloat((subtotal * TAX_RATE).toFixed(2));
-    const grandTotal = parseFloat((subtotal + taxAmount + deliveryFee).toFixed(2));
+    const grandTotal = parseFloat((subtotal + taxAmount + totalDeliveryFee).toFixed(2));
+
+    const firstGroup = restaurantGroups[0];
 
     return {
       items,
-      restaurantId: restaurant?.id?.toString() ?? null,
-      restaurantName: restaurant?.name ?? null,
-      restaurantImage: restaurant?.imageUrl ?? null,
+      restaurantGroups,
+      restaurantId: firstGroup?.restaurantId ?? null,
+      restaurantName: firstGroup?.restaurantName ?? null,
+      restaurantImage: firstGroup?.restaurantImage ?? null,
       bill: {
-        subtotal: parseFloat(subtotal.toFixed(2)),
+        subtotal,
         taxAmount,
-        deliveryFee,
+        deliveryFee: totalDeliveryFee,
         grandTotal,
         currencySymbol: '₹',
       },

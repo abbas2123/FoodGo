@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { createObserveModule } from '@nestjs/observe';
 import configuration from './config/configuration.js';
 import { validate } from './config/env.validation.js';
@@ -17,6 +19,8 @@ import { RestaurantsModule } from './modules/restaurants/restaurants.module.js';
 import { OrdersModule } from './modules/orders/orders.module.js';
 import { FavoritesModule } from './modules/favorites/favorites.module.js';
 import { CartsModule } from './modules/carts/carts.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { SearchModule } from './modules/search/search.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -28,6 +32,12 @@ const isObserveConfigured =
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 60,
+      },
+    ]),
     ObserveModule.forRoot({
       appKey: process.env.OBSERVE_APP_KEY ?? 'DISABLED',
       appSecret: process.env.OBSERVE_APP_SECRET ?? 'DISABLED',
@@ -53,8 +63,16 @@ const isObserveConfigured =
     OrdersModule,
     FavoritesModule,
     CartsModule,
+    NotificationsModule,
+    SearchModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

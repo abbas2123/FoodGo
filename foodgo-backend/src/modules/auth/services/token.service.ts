@@ -1,5 +1,6 @@
 import {
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -25,6 +26,9 @@ export class TokenService {
     const accessSecret =
       this.configService.get<string>('jwt.accessSecret') ||
       this.configService.get<string>('JWT_ACCESS_SECRET');
+    if (!accessSecret) {
+      throw new InternalServerErrorException('JWT access secret is not configured');
+    }
     const accessExpiresIn =
       this.configService.get<string>('jwt.accessExpiresIn') ||
       this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') ||
@@ -33,6 +37,9 @@ export class TokenService {
     const refreshSecret =
       this.configService.get<string>('jwt.refreshSecret') ||
       this.configService.get<string>('JWT_REFRESH_SECRET');
+    if (!refreshSecret) {
+      throw new InternalServerErrorException('JWT refresh secret is not configured');
+    }
     const refreshExpiresIn =
       this.configService.get<string>('jwt.refreshExpiresIn') ||
       this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') ||
@@ -67,11 +74,21 @@ export class TokenService {
 
   async rotateRefreshToken(rawRefreshToken: string): Promise<{
     tokens: AuthTokens;
-    user: { id: string; phone: string; type: string; status: string };
+    user: {
+      id: string;
+      email?: string | null;
+      phone?: string | null;
+      name: string | null;
+      type: string;
+      status: string;
+    };
   }> {
     const refreshSecret =
       this.configService.get<string>('jwt.refreshSecret') ||
       this.configService.get<string>('JWT_REFRESH_SECRET');
+    if (!refreshSecret) {
+      throw new InternalServerErrorException('JWT refresh secret is not configured');
+    }
 
     let payload: JwtPayload;
     try {
@@ -110,9 +127,13 @@ export class TokenService {
       throw new UnauthorizedException('User account is inactive or suspended');
     }
 
+    const userEmail = user.email ?? user.auth?.email ?? payload.email ?? null;
+    const userPhone = user.auth?.phone ?? payload.phone ?? null;
+
     const newPayload: JwtPayload = {
       sub: user.id.toString(),
-      phone: user.auth?.phone ?? payload.phone,
+      email: userEmail ?? undefined,
+      phone: userPhone ?? undefined,
       type: user.type,
       status: user.status,
     };
@@ -139,7 +160,9 @@ export class TokenService {
       tokens: newTokens,
       user: {
         id: user.id.toString(),
-        phone: user.auth?.phone ?? payload.phone,
+        email: userEmail,
+        phone: userPhone,
+        name: user.name,
         type: user.type,
         status: user.status,
       },

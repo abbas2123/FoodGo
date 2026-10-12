@@ -38,7 +38,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
   const label =
     useAppSelector((state) => state.location.label) || "Delivering to";
   const notificationCount = useAppSelector(
-    (state) => state.ui.notificationCount,
+    (state) => state.notifications.unreadCount,
   );
 
   let displayAddress: string;

@@ -1,22 +1,37 @@
 {
   "expo": {
-    "name": "foodgo-customer",
+    "name": "FoodiGo",
     "slug": "foodgo-customer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "foodigo",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.foodigo.customer",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FoodiGo needs your location to show restaurants near you and ensure accurate delivery.",
+        "NSPhotoLibraryUsageDescription": "FoodiGo accesses your photos to allow updating your profile picture."
+      }
     },
     "android": {
+      "package": "com.foodigo.customer",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -24,7 +39,19 @@
     "plugins": [
       "expo-secure-store",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FoodiGo needs your location to show restaurants near you and ensure accurate delivery."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FoodiGo accesses your photos to allow updating your profile picture."
+        }
+      ]
     ]
   }
 }

@@ -4,8 +4,11 @@ export class UserProfileDto {
   @ApiProperty({ example: '1' })
   id: string;
 
-  @ApiProperty({ example: '+14155552671' })
-  phone: string;
+  @ApiProperty({ example: 'customer@example.com', nullable: true })
+  email?: string | null;
+
+  @ApiProperty({ example: '+14155552671', nullable: true })
+  phone?: string | null;
 
   @ApiProperty({ example: 'Alex Morgan', nullable: true })
   name: string | null;

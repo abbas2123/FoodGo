@@ -21,10 +21,10 @@ import {
   searchRestaurants,
   clearSearch,
 } from "@/store/slices/restaurantsSlice";
-import { addToCart } from "@/store/slices/cartSlice";
+import { addToCart, addCartItemServer } from "@/store/slices/cartSlice";
+import { formatINR } from "@/utils/currency";
 import { RestaurantListItem, SearchDishItem } from "@/api/restaurants/restaurantsApi";
-
-const initialRecentSearches = ["Burger", "Biryani", "Pizza", "Momos"];
+import { searchHistoryApi, RecentSearchItem } from "@/api/search/searchHistoryApi";
 
 const popularSearches = [
   "Burgers",
@@ -54,11 +54,30 @@ export default function SearchPage() {
   const dispatch = useAppDispatch();
 
   const [search, setSearch] = useState("");
-  const [recent, setRecent] = useState(initialRecentSearches);
+  const [recent, setRecent] = useState<RecentSearchItem[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchResults = useAppSelector((state) => state.restaurants.searchResults);
   const searchLoading = useAppSelector((state) => state.restaurants.searchLoading);
+
+  // Load recent searches from backend on mount
+  useEffect(() => {
+    let cancelled = false;
+    setRecentLoading(true);
+    searchHistoryApi.getRecent()
+      .then((res) => {
+        if (!cancelled) setRecent(res.data ?? []);
+      })
+      .catch(() => {
+        // Silently ignore — show empty list on failure
+        if (!cancelled) setRecent([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRecentLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   // Debounced search
   useEffect(() => {
@@ -84,21 +103,47 @@ export default function SearchPage() {
 
   const handleSelectQuery = (term: string) => {
     setSearch(term);
-    if (!recent.includes(term)) {
-      setRecent((prev) => [term, ...prev.slice(0, 5)]);
+    const alreadyExists = recent.some((r) => r.query.toLowerCase() === term.toLowerCase());
+    if (!alreadyExists) {
+      searchHistoryApi.addRecent(term)
+        .then((res) => {
+          setRecent((prev) => [res.data, ...prev].slice(0, 10));
+        })
+        .catch(() => {
+          // Non-blocking — still apply search
+        });
     }
   };
 
-  const removeRecentSearch = (item: string) => {
-    setRecent((prev) => prev.filter((s) => s !== item));
+  const removeRecentSearch = (item: RecentSearchItem) => {
+    searchHistoryApi.deleteRecent(item.id)
+      .then(() => {
+        setRecent((prev) => prev.filter((r) => r.id !== item.id));
+      })
+      .catch(() => {
+        setRecent((prev) => prev.filter((r) => r.id !== item.id));
+      });
   };
 
   const clearAllRecent = () => {
-    setRecent([]);
+    searchHistoryApi.clearRecent()
+      .then(() => setRecent([]))
+      .catch(() => setRecent([]));
   };
 
   const handleDishPress = (dish: SearchDishItem) => {
-    navigation.navigate("RestaurantDetails", { id: dish.restaurantId });
+    handleSelectQuery(dish.name);
+    navigation.navigate("ProductDetails", {
+      dish: {
+        id: dish.id,
+        name: dish.name,
+        price: dish.price,
+        image: dish.image,
+        category: dish.category,
+        rating: dish.rating,
+      },
+      restaurantId: dish.restaurantId,
+    });
   };
 
   const handleAddDishToCart = (dish: SearchDishItem) => {
@@ -109,6 +154,12 @@ export default function SearchPage() {
         price: dish.price,
         image: dish.image,
         restaurantId: dish.restaurantId,
+      }),
+    );
+    dispatch(
+      addCartItemServer({
+        menuItemId: Number(dish.id),
+        quantity: 1,
       }),
     );
   };
@@ -309,7 +360,7 @@ export default function SearchPage() {
                           >
                             By {dish.restaurantName}
                           </Text>
-                          <Text style={styles.dishPrice}>₹{dish.price}</Text>
+                          <Text style={styles.dishPrice}>{formatINR(dish.price)}</Text>
                         </View>
                         <TouchableOpacity
                           style={styles.addDishBtn}
@@ -329,7 +380,11 @@ export default function SearchPage() {
           /* Default state when search query is empty */
           <View>
             {/* Recent Searches */}
-            {recent.length > 0 && (
+            {recentLoading ? (
+              <View style={[styles.section, { alignItems: "center", paddingVertical: 12 }]}>
+                <ActivityIndicator size="small" color="#FF6B35" />
+              </View>
+            ) : recent.length > 0 ? (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={[styles.sectionTitle, { color: theme.text }]}>
@@ -343,10 +398,10 @@ export default function SearchPage() {
                 <View style={styles.recentList}>
                   {recent.map((item) => (
                     <TouchableOpacity
-                      key={item}
+                      key={item.id}
                       style={styles.recentItem}
                       activeOpacity={0.7}
-                      onPress={() => handleSelectQuery(item)}
+                      onPress={() => handleSelectQuery(item.query)}
                     >
                       <Ionicons
                         name="time-outline"
@@ -356,7 +411,7 @@ export default function SearchPage() {
                       <Text
                         style={[styles.recentText, { color: theme.text }]}
                       >
-                        {item}
+                        {item.query}
                       </Text>
                       <Pressable
                         onPress={() => removeRecentSearch(item)}
@@ -372,7 +427,7 @@ export default function SearchPage() {
                   ))}
                 </View>
               </View>
-            )}
+            ) : null}
 
             {/* Popular Searches */}
             <View style={styles.section}>

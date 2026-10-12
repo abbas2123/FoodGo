@@ -13,11 +13,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppDispatch } from "@/hooks/useAppDispatch";
 import { useAppSelector } from "@/hooks/useAppSelector";
 import {
+  clearCart,
   addToCart,
   decrementQuantity,
   removeFromCart,
-  clearCart,
+  addCartItemServer,
+  updateCartItemQuantityServer,
+  removeCartItemServer,
+  clearCartServer,
+  fetchCart,
 } from "@/store/slices/cartSlice";
+import {
+  formatINR,
+  FREE_DELIVERY_THRESHOLD_INR,
+  DELIVERY_FEE_INR,
+  PLATFORM_FEE_INR,
+} from "@/utils/currency";
 
 interface CartModalProps {
   visible: boolean;
@@ -35,18 +46,28 @@ export const CartModal: React.FC<CartModalProps> = ({
   const totalCount = useAppSelector((state) => state.cart.totalCount);
   const totalAmount = useAppSelector((state) => state.cart.totalAmount);
   const location = useAppSelector((state) => state.location);
-  console.log("cartItems:", cartItems);
+
+  React.useEffect(() => {
+    if (visible) {
+      dispatch(fetchCart());
+    }
+  }, [visible, dispatch]);
+
   const deliveryAddress =
     location.formattedAddress ||
     location.displayLocation ||
     location.city ||
     "Current Location";
 
-  const deliveryFee = totalAmount >= 30 || totalAmount === 0 ? 0 : 2.99;
-  const taxesAndFees = totalAmount > 0 ? 1.5 : 0;
+  const deliveryFee =
+    totalAmount >= FREE_DELIVERY_THRESHOLD_INR || totalAmount === 0
+      ? 0
+      : DELIVERY_FEE_INR;
+  const taxesAndFees = totalAmount > 0 ? PLATFORM_FEE_INR : 0;
   const grandTotal = totalAmount + deliveryFee + taxesAndFees;
 
   const handleIncrement = (item: (typeof cartItems)[0]) => {
+    // 1. Optimistic update
     dispatch(
       addToCart({
         id: item.id,
@@ -54,20 +75,43 @@ export const CartModal: React.FC<CartModalProps> = ({
         price: item.price,
         image: item.image,
         restaurantId: item.restaurantId,
-        quantity: 1,
       }),
     );
+    // 2. Server persist
+    const menuItemId = parseInt(item.menuItemId || item.id, 10);
+    if (!isNaN(menuItemId)) {
+      dispatch(addCartItemServer({ menuItemId, quantity: 1 }));
+    }
   };
 
-  const handleDecrement = (itemId: string) => {
-    dispatch(decrementQuantity(itemId));
+  const handleDecrement = (item: (typeof cartItems)[0]) => {
+    const targetId = String(item.id || item.menuItemId || "");
+    if (!targetId) return;
+    // 1. Optimistic update
+    dispatch(decrementQuantity(targetId));
+
+    // 2. Server persist
+    if (item.quantity <= 1) {
+      dispatch(removeCartItemServer(targetId));
+    } else {
+      dispatch(
+        updateCartItemQuantityServer({
+          cartItemId: targetId,
+          quantity: item.quantity - 1,
+        })
+      );
+    }
   };
 
-  const handleRemove = (itemId: string) => {
-    dispatch(removeFromCart(itemId));
+  const handleRemove = (item: (typeof cartItems)[0]) => {
+    const targetId = String(item.id || item.menuItemId || "");
+    if (!targetId) return;
+    dispatch(removeFromCart(targetId));
+    dispatch(removeCartItemServer(targetId));
   };
 
   const handleClear = () => {
+    dispatch(clearCartServer());
     dispatch(clearCart());
   };
 
@@ -174,7 +218,7 @@ export const CartModal: React.FC<CartModalProps> = ({
                         {item.name}
                       </Text>
                       <Text style={styles.itemPrice}>
-                        ${item.price.toFixed(2)} each
+                        {formatINR(item.price)} each
                       </Text>
                     </View>
 
@@ -182,7 +226,7 @@ export const CartModal: React.FC<CartModalProps> = ({
                     <View style={styles.stepperContainer}>
                       <Pressable
                         style={styles.stepperBtn}
-                        onPress={() => handleDecrement(item.id)}
+                        onPress={() => handleDecrement(item)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
                         <Ionicons name="remove" size={16} color="#C1121F" />
@@ -200,10 +244,10 @@ export const CartModal: React.FC<CartModalProps> = ({
                     {/* Item Subtotal & Delete */}
                     <View style={styles.itemRight}>
                       <Text style={styles.itemSubtotal}>
-                        ${(item.price * item.quantity).toFixed(2)}
+                        {formatINR(item.price * item.quantity)}
                       </Text>
                       <Pressable
-                        onPress={() => handleRemove(item.id)}
+                        onPress={() => handleRemove(item)}
                         style={styles.deleteBtn}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
@@ -224,7 +268,7 @@ export const CartModal: React.FC<CartModalProps> = ({
                   <View style={styles.billRow}>
                     <Text style={styles.billLabel}>Item Total</Text>
                     <Text style={styles.billValue}>
-                      ${totalAmount.toFixed(2)}
+                      {formatINR(totalAmount)}
                     </Text>
                   </View>
 
@@ -244,15 +288,15 @@ export const CartModal: React.FC<CartModalProps> = ({
                       ]}
                     >
                       {deliveryFee === 0
-                        ? "$0.00"
-                        : `$${deliveryFee.toFixed(2)}`}
+                        ? "₹0"
+                        : formatINR(deliveryFee)}
                     </Text>
                   </View>
 
                   <View style={styles.billRow}>
                     <Text style={styles.billLabel}>Taxes & Fees</Text>
                     <Text style={styles.billValue}>
-                      ${taxesAndFees.toFixed(2)}
+                      {formatINR(taxesAndFees)}
                     </Text>
                   </View>
 
@@ -264,8 +308,7 @@ export const CartModal: React.FC<CartModalProps> = ({
                         color="#059669"
                       />
                       <Text style={styles.freeDeliveryText}>
-                        Add ${(30 - totalAmount).toFixed(2)} more for FREE
-                        delivery!
+                        Add {formatINR(FREE_DELIVERY_THRESHOLD_INR - totalAmount)} more for FREE delivery!
                       </Text>
                     </View>
                   )}
@@ -275,7 +318,7 @@ export const CartModal: React.FC<CartModalProps> = ({
                   <View style={styles.totalRow}>
                     <Text style={styles.totalLabel}>Grand Total</Text>
                     <Text style={styles.totalValue}>
-                      ${grandTotal.toFixed(2)}
+                      {formatINR(grandTotal)}
                     </Text>
                   </View>
                 </View>
@@ -292,7 +335,7 @@ export const CartModal: React.FC<CartModalProps> = ({
                       {totalCount} {totalCount === 1 ? "item" : "items"}
                     </Text>
                     <Text style={styles.btnPrice}>
-                      ${grandTotal.toFixed(2)}
+                      {formatINR(grandTotal)}
                     </Text>
                   </View>
 

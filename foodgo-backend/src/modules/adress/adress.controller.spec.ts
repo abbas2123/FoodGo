@@ -5,6 +5,7 @@ import { AdressService } from './adress.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
+import { PrismaService } from '../../prisma/prisma.service.js';
 
 describe('AdressController', () => {
   let controller: AdressController;
@@ -35,6 +36,7 @@ describe('AdressController', () => {
         { provide: JwtService, useValue: { verifyAsync: vi.fn() } },
         { provide: ConfigService, useValue: { get: vi.fn() } },
         { provide: Reflector, useValue: { getAllAndOverride: vi.fn() } },
+        { provide: PrismaService, useValue: { user: { findUnique: vi.fn() } } },
       ],
     }).compile();
 

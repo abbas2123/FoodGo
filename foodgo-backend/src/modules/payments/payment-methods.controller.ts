@@ -33,7 +33,6 @@ export class PaymentMethodsController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
   async getPaymentMethods(@Req() req: any) {
     const userId = BigInt(req.user.sub ?? req.user.userId);
-    console.log(' payment-----------------userId----------', userId);
     return this.paymentMethodsService.getPaymentMethods(userId);
   }
 

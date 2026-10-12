@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -18,7 +19,9 @@ import { getOrderTab, Order } from "@/types/order.types";
 import { useAppDispatch } from "@/hooks/useAppDispatch";
 import { useAppSelector } from "@/hooks/useAppSelector";
 import { fetchOrders, reorderPastOrder } from "@/store/slices/ordersSlice";
-import { addToCart } from "@/store/slices/cartSlice";
+import { addToCart, addCartItemServer } from "@/store/slices/cartSlice";
+import { formatINR } from "@/utils/currency";
+import { useTheme } from "@/theme/useTheme";
 
 const tabs = ["All", "Ongoing", "Completed", "Cancelled"] as const;
 type TabType = (typeof tabs)[number];
@@ -44,11 +47,12 @@ function formatOrderListItem(o: Order) {
     status: getOrderTab(o.status) as "Ongoing" | "Completed" | "Cancelled",
     statusLabel: o.statusLabel,
     items: o.items.map((i) => `${i.quantity}x ${i.name}`).join(", "),
-    price: `${o.bill.currencySymbol}${o.bill.grandTotal}`,
+    price: formatINR(o.bill.grandTotal),
   };
 }
 
 export default function OrdersPage() {
+  const { theme, isDark } = useTheme();
   const [selectedTab, setSelectedTab] = useState<TabType>("All");
   const navigation =
     useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -81,6 +85,12 @@ export default function OrdersPage() {
                 quantity: item.quantity,
               }),
             );
+            dispatch(
+              addCartItemServer({
+                menuItemId: parseInt(item.id, 10),
+                quantity: item.quantity,
+              }),
+            );
           });
           if (result.unavailableCount > 0) {
             Alert.alert(
@@ -107,7 +117,11 @@ export default function OrdersPage() {
       : ordersList.filter((order) => order.status === selectedTab);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor={theme.surface}
+      />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -115,14 +129,25 @@ export default function OrdersPage() {
           <RefreshControl
             refreshing={loading}
             onRefresh={onRefresh}
-            colors={["#D71920"]}
-            tintColor="#D71920"
+            colors={[theme.primary]}
+            tintColor={theme.primary}
           />
         }
       >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Orders</Text>
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.surface,
+              borderBottomColor: theme.border,
+              borderBottomWidth: StyleSheet.hairlineWidth,
+            },
+          ]}
+        >
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            My Orders
+          </Text>
         </View>
 
         {/* Order Tabs */}
@@ -138,9 +163,31 @@ export default function OrdersPage() {
               <Pressable
                 key={tab}
                 onPress={() => setSelectedTab(tab)}
-                style={[styles.tab, active && styles.activeTab]}
+                style={[
+                  styles.tab,
+                  {
+                    backgroundColor: active
+                      ? theme.primaryLight
+                      : isDark
+                        ? theme.card
+                        : "#FFE8E5",
+                    borderColor: active
+                      ? theme.primary
+                      : isDark
+                        ? theme.border
+                        : "#F4C8C4",
+                  },
+                ]}
               >
-                <Text style={[styles.tabText, active && styles.activeTabText]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    {
+                      color: active ? theme.primary : theme.text,
+                      fontWeight: active ? "700" : "600",
+                    },
+                  ]}
+                >
                   {tab}
                 </Text>
               </Pressable>
@@ -160,12 +207,12 @@ export default function OrdersPage() {
                     : "receipt-outline"
               }
               size={60}
-              color="#D71920"
+              color={theme.primary}
             />
-            <Text style={styles.emptyTitle}>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
               {selectedTab === "All" ? "No Orders" : `${selectedTab} Orders`}
             </Text>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { color: theme.secondaryText }]}>
               {selectedTab === "All"
                 ? "You have not placed any orders yet."
                 : `Your ${selectedTab.toLowerCase()} orders will appear here.`}
@@ -173,62 +220,128 @@ export default function OrdersPage() {
           </View>
         ) : (
           filteredOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
+            <View
+              key={order.id}
+              style={[
+                styles.orderCard,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  borderWidth: isDark ? 1 : 0,
+                },
+              ]}
+            >
               <View style={styles.orderHeader}>
-                <View style={styles.foodImage}>
+                <View
+                  style={[
+                    styles.foodImage,
+                    { backgroundColor: theme.surface },
+                  ]}
+                >
                   <Ionicons
                     name="fast-food-outline"
                     size={32}
-                    color="#D71920"
+                    color={theme.primary}
                   />
                 </View>
 
                 <View style={styles.restaurantInfo}>
-                  <Text style={styles.restaurantName}>
+                  <Text style={[styles.restaurantName, { color: theme.text }]}>
                     {order.restaurantName}
                   </Text>
-                  <Text style={styles.orderNumber}>{order.orderNumber}</Text>
+                  <Text style={[styles.orderNumber, { color: theme.muted }]}>
+                    {order.orderNumber}
+                  </Text>
                 </View>
 
                 {order.status === "Ongoing" && (
-                  <View style={styles.statusContainer}>
+                  <View
+                    style={[
+                      styles.statusContainer,
+                      {
+                        backgroundColor: isDark ? "#3A1A1A" : "#FFE9E7",
+                      },
+                    ]}
+                  >
                     <View style={styles.statusDot} />
-                    <Text style={styles.statusText}>{order.statusLabel}</Text>
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: isDark ? "#FFA2A2" : "#292322" },
+                      ]}
+                    >
+                      {order.statusLabel}
+                    </Text>
                   </View>
                 )}
 
                 {order.status === "Completed" && (
-                  <View style={styles.deliveredContainer}>
+                  <View
+                    style={[
+                      styles.deliveredContainer,
+                      {
+                        backgroundColor: isDark ? "#0E2E22" : "transparent",
+                        paddingHorizontal: isDark ? 8 : 0,
+                        paddingVertical: isDark ? 4 : 0,
+                        borderRadius: 12,
+                      },
+                    ]}
+                  >
                     <Ionicons
                       name="checkmark-circle-outline"
                       size={14}
-                      color="#00897B"
+                      color="#10B981"
                     />
-                    <Text style={styles.deliveredText}>
+                    <Text
+                      style={[
+                        styles.deliveredText,
+                        { color: isDark ? "#34D399" : "#00897B" },
+                      ]}
+                    >
                       {order.statusLabel}
                     </Text>
                   </View>
                 )}
 
                 {order.status === "Cancelled" && (
-                  <View style={styles.cancelledStatusContainer}>
+                  <View
+                    style={[
+                      styles.cancelledStatusContainer,
+                      {
+                        backgroundColor: isDark ? "#3A1515" : "#FFEAEA",
+                      },
+                    ]}
+                  >
                     <Ionicons
                       name="close-circle-outline"
                       size={14}
-                      color="#D71920"
+                      color={theme.primary}
                     />
-                    <Text style={styles.cancelledStatusText}>
+                    <Text
+                      style={[
+                        styles.cancelledStatusText,
+                        { color: theme.primary },
+                      ]}
+                    >
                       {order.statusLabel}
                     </Text>
                   </View>
                 )}
               </View>
 
-              <View style={styles.divider} />
+              <View
+                style={[styles.divider, { backgroundColor: theme.border }]}
+              />
 
               <View style={styles.itemRow}>
-                <Text style={styles.itemText}>{order.items}</Text>
-                <Text style={styles.price}>{order.price}</Text>
+                <Text
+                  style={[styles.itemText, { color: theme.secondaryText }]}
+                >
+                  {order.items}
+                </Text>
+                <Text style={[styles.price, { color: theme.text }]}>
+                  {order.price}
+                </Text>
               </View>
 
               {order.status === "Ongoing" && (
@@ -247,21 +360,44 @@ export default function OrdersPage() {
               {order.status === "Completed" && (
                 <View style={styles.actionRow}>
                   <Pressable
-                    style={styles.detailsButton}
+                    style={[
+                      styles.detailsButton,
+                      {
+                        backgroundColor: isDark ? theme.surface : "#FFE7E4",
+                        borderColor: theme.border,
+                        borderWidth: isDark ? 1 : 0,
+                      },
+                    ]}
                     onPress={() =>
                       navigation.navigate("OrderDetails", {
                         orderId: order.id,
                       })
                     }
                   >
-                    <Text style={styles.detailsText}>View Details</Text>
+                    <Text
+                      style={[styles.detailsText, { color: theme.text }]}
+                    >
+                      View Details
+                    </Text>
                   </Pressable>
 
                   <Pressable
-                    style={styles.reorderButton}
+                    style={[
+                      styles.reorderButton,
+                      {
+                        backgroundColor: theme.primaryLight,
+                      },
+                    ]}
                     onPress={() => handleReorder(order.id)}
                   >
-                    <Text style={styles.reorderText}>Reorder</Text>
+                    <Text
+                      style={[
+                        styles.reorderText,
+                        { color: isDark ? "#FFA2A2" : theme.primary },
+                      ]}
+                    >
+                      Reorder
+                    </Text>
                   </Pressable>
                 </View>
               )}
@@ -269,20 +405,43 @@ export default function OrdersPage() {
               {order.status === "Cancelled" && (
                 <View style={styles.actionRow}>
                   <Pressable
-                    style={styles.detailsButton}
+                    style={[
+                      styles.detailsButton,
+                      {
+                        backgroundColor: isDark ? theme.surface : "#FFE7E4",
+                        borderColor: theme.border,
+                        borderWidth: isDark ? 1 : 0,
+                      },
+                    ]}
                     onPress={() =>
                       navigation.navigate("OrderDetails", {
                         orderId: order.id,
                       })
                     }
                   >
-                    <Text style={styles.detailsText}>View Details</Text>
+                    <Text
+                      style={[styles.detailsText, { color: theme.text }]}
+                    >
+                      View Details
+                    </Text>
                   </Pressable>
                   <Pressable
-                    style={styles.reorderButton}
+                    style={[
+                      styles.reorderButton,
+                      {
+                        backgroundColor: theme.primaryLight,
+                      },
+                    ]}
                     onPress={() => handleReorder(order.id)}
                   >
-                    <Text style={styles.reorderText}>Reorder</Text>
+                    <Text
+                      style={[
+                        styles.reorderText,
+                        { color: isDark ? "#FFA2A2" : theme.primary },
+                      ]}
+                    >
+                      Reorder
+                    </Text>
                   </Pressable>
                 </View>
               )}
@@ -293,6 +452,7 @@ export default function OrdersPage() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

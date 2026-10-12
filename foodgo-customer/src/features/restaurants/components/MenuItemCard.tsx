@@ -1,14 +1,22 @@
 import React from "react";
 import { View, Text, StyleSheet, Image, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/theme/useTheme";
 import { MenuItem } from "../types";
 import { VegIcon } from "./VegIcon";
+import { formatINR } from "@/utils/currency";
+
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { AppStackParamList } from "@/navigation/types";
 
 interface MenuItemCardProps {
   item: MenuItem;
   quantity: number;
   onAdd: (item: MenuItem) => void;
   onDecrement: (itemId: string) => void;
+  restaurantId?: string;
+  restaurantName?: string;
 }
 
 export const MenuItemCard: React.FC<MenuItemCardProps> = ({
@@ -16,45 +24,103 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
   quantity,
   onAdd,
   onDecrement,
+  restaurantId,
+  restaurantName,
 }) => {
+  const { theme, isDark } = useTheme();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+
+  const handleOpenDetail = () => {
+    navigation.navigate("ProductDetails", {
+      dish: item,
+      restaurantId,
+      restaurantName,
+    });
+  };
+
   return (
-    <View style={styles.menuItem}>
+    <View
+      style={[
+        styles.menuItem,
+        {
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          borderWidth: isDark ? 1 : 0,
+        },
+      ]}
+    >
       {/* Left Details */}
-      <View style={styles.menuItemLeft}>
+      <Pressable style={styles.menuItemLeft} onPress={handleOpenDetail}>
         <View style={styles.vegRow}>
           <VegIcon isVeg={item.isVeg} />
           {item.isBestseller && (
-            <View style={styles.bestsellerBadge}>
-              <Text style={styles.bestsellerText}>⭐ Bestseller</Text>
+            <View
+              style={[
+                styles.bestsellerBadge,
+                {
+                  backgroundColor: isDark ? "#3D2B14" : "#FFF7ED",
+                  borderColor: isDark ? "#6B4A1D" : "#FED7AA",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.bestsellerText,
+                  { color: isDark ? "#FBBF24" : "#D97706" },
+                ]}
+              >
+                ⭐ Bestseller
+              </Text>
             </View>
           )}
         </View>
-        <Text style={styles.menuItemName}>{item.name}</Text>
-        <Text style={styles.menuItemDesc} numberOfLines={2}>
+        <Text style={[styles.menuItemName, { color: theme.text }]}>
+          {item.name}
+        </Text>
+        <Text
+          style={[styles.menuItemDesc, { color: theme.secondaryText }]}
+          numberOfLines={2}
+        >
           {item.description}
         </Text>
         <View style={styles.priceRow}>
-          <Text style={styles.menuItemPrice}>${item.price.toFixed(2)}</Text>
+          <Text style={[styles.menuItemPrice, { color: theme.text }]}>
+            {formatINR(item.price)}
+          </Text>
           <View style={styles.miniRating}>
             <Ionicons name="star" size={11} color="#FF6B35" />
             <Text style={styles.miniRatingText}>{item.rating}</Text>
           </View>
         </View>
-      </View>
+      </Pressable>
 
       {/* Right Image & Add/Quantity button */}
       <View style={styles.menuItemRight}>
-        <Image source={{ uri: item.image }} style={styles.menuItemImage} />
+        <Pressable onPress={handleOpenDetail}>
+          <Image source={{ uri: item.image }} style={styles.menuItemImage} />
+        </Pressable>
         {quantity === 0 ? (
           <Pressable
-            style={styles.addBtn}
+            style={[
+              styles.addBtn,
+              {
+                backgroundColor: isDark ? theme.primaryLight : "#FFF5F5",
+                borderColor: theme.primary,
+              },
+            ]}
             onPress={() => onAdd(item)}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
-            <Ionicons name="add" size={22} color="#C1121F" />
+            <Ionicons name="add" size={22} color={theme.primary} />
           </Pressable>
         ) : (
-          <View style={styles.qtyControl}>
+          <View
+            style={[
+              styles.qtyControl,
+              { backgroundColor: theme.primary },
+            ]}
+          >
             <Pressable
               style={styles.qtyBtn}
               onPress={() => onDecrement(item.id)}

@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/theme/useTheme";
 
 interface RestaurantStickyHeaderProps {
   name: string;
@@ -18,21 +19,45 @@ export const RestaurantStickyHeader: React.FC<RestaurantStickyHeaderProps> = ({
   onToggleFavorite,
   headerOpacity,
 }) => {
+  const { theme, isDark } = useTheme();
+
   return (
-    <Animated.View style={[styles.stickyHeader, { opacity: headerOpacity }]}>
+    <Animated.View
+      style={[
+        styles.stickyHeader,
+        {
+          opacity: headerOpacity,
+          backgroundColor: theme.surface,
+          borderBottomColor: theme.border,
+          borderBottomWidth: isDark ? 1 : 0,
+        },
+      ]}
+    >
       <SafeAreaView edges={["top"]}>
         <View style={styles.stickyHeaderInner}>
-          <Pressable style={styles.iconBtn} onPress={onBack}>
-            <Ionicons name="arrow-back" size={22} color="#1F2937" />
+          <Pressable
+            style={[
+              styles.iconBtn,
+              { backgroundColor: isDark ? theme.card : "#F3F4F6" },
+            ]}
+            onPress={onBack}
+          >
+            <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
-          <Text style={styles.stickyTitle} numberOfLines={1}>
+          <Text style={[styles.stickyTitle, { color: theme.text }]} numberOfLines={1}>
             {name}
           </Text>
-          <Pressable style={styles.iconBtn} onPress={onToggleFavorite}>
+          <Pressable
+            style={[
+              styles.iconBtn,
+              { backgroundColor: isDark ? theme.card : "#F3F4F6" },
+            ]}
+            onPress={onToggleFavorite}
+          >
             <Ionicons
               name={isFavorite ? "heart" : "heart-outline"}
               size={22}
-              color={isFavorite ? "#C1121F" : "#1F2937"}
+              color={isFavorite ? "#C1121F" : theme.text}
             />
           </Pressable>
         </View>

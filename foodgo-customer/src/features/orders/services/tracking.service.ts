@@ -1,20 +1,58 @@
 /**
  * Tracking Service
  *
- * Handles routing calculations (Google Directions API with fallback road network),
- * polyline decoding, bearing calculation for marker rotation, and live tracking subscriptions.
+ * Real-time backend-driven order tracking service.
+ * Connects to the FoodiGo backend tracking endpoints via periodic polling
+ * with in-flight lock, exponential backoff, and terminal state cancellation.
  *
- * Real-time updates:
- * Designed to connect to a WebSocket gateway when backend orders tracking is deployed.
- * Includes a marked development simulator for local UI testing.
+ * Strictly NO hardcoded Bangalore coordinates or local simulation timers.
  */
 
-import type { Coordinates, DeliveryTracking } from "@/types/order.types";
+import type { Coordinates } from "@/types/order.types";
+import { ordersApi } from "@/api/orders/ordersApi";
 
 export interface DeliveryRouteResult {
   coordinates: Coordinates[];
   distanceMeters: number;
   durationSeconds: number;
+}
+
+export interface BackendTrackingData {
+  orderId: string;
+  orderNumber?: string;
+  status: string;
+  statusLabel?: string;
+  isDriverAssigned: boolean;
+  hasDriverLocation: boolean;
+  isLocationStale: boolean;
+  driverUpdatedAt: string | null;
+  driver: {
+    id: string | null;
+    name: string;
+    phone: string | null;
+    rating: number | null;
+    location: {
+      latitude: number;
+      longitude: number;
+      heading?: number;
+      updatedAt?: string | null;
+    } | null;
+  } | null;
+  restaurant: {
+    id: string;
+    name: string;
+    location: Coordinates | null;
+  };
+  deliveryLocation: {
+    latitude: number | null;
+    longitude: number | null;
+    address: string;
+  } | null;
+}
+
+export interface TrackingSubscriptionOptions {
+  pollingIntervalMs?: number;
+  onError?: (error: any) => void;
 }
 
 /**
@@ -101,28 +139,29 @@ export function calculateDistanceMeters(
 }
 
 /**
- * Pre-defined realistic road waypoints following actual Bangalore streets
- * (Indiranagar 100ft Rd -> CMH Rd -> Old Airport Rd -> Halasuru -> Trinity -> MG Road).
- * Used when no Google Maps API key is configured or offline.
+ * Formats seconds into human-friendly ETA text (e.g. "10–15 min").
  */
-const DEFAULT_ROAD_COORDINATES: Coordinates[] = [
-  { latitude: 12.9719, longitude: 77.6412 }, // The Burger Joint, Indiranagar
-  { latitude: 12.9723, longitude: 77.6401 }, // 100ft Rd junction
-  { latitude: 12.9729, longitude: 77.6384 }, // Turning onto CMH Road
-  { latitude: 12.9734, longitude: 77.6362 }, // CMH Road metro stretch
-  { latitude: 12.9736, longitude: 77.6345 }, // CMH Road crossing
-  { latitude: 12.9735, longitude: 77.6322 }, // Approaching Halasuru Lake road
-  { latitude: 12.9741, longitude: 77.6305 }, // Lake view turn
-  { latitude: 12.9748, longitude: 77.6282 }, // Kensington Road
-  { latitude: 12.9752, longitude: 77.6258 }, // Gurudwara junction
-  { latitude: 12.9755, longitude: 77.6234 }, // Trinity Circle approach
-  { latitude: 12.9754, longitude: 77.6215 }, // MG Road entrance
-  { latitude: 12.9756, longitude: 77.6192 }, // Sunset Heights Apartments, MG Road
-];
+export function formatETA(seconds: number): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes <= 3) return "Arriving in 2–3 min";
+  if (minutes <= 7) return `Arriving in ${minutes - 2}–${minutes} min`;
+  return `Arriving in ${minutes - 3}–${minutes + 2} min`;
+}
+
+/**
+ * Formats distance in meters to a readable string (e.g. "1.8 km away" or "450 m away").
+ */
+export function formatDistance(meters: number): string {
+  if (meters < 1000) {
+    return `${meters} m away`;
+  }
+  return `${(meters / 1000).toFixed(1)} km away`;
+}
 
 /**
  * Fetches the road-following delivery route between origin and destination.
- * Checks for EXPO_PUBLIC_GOOGLE_MAPS_API_KEY; falls back to real street waypoints.
+ * Uses Google Directions API if configured; otherwise generates a direct geodetic path
+ * connecting actual origin and destination. Never fabricates Bangalore coordinates.
  */
 export async function getDeliveryRoute(
   origin: Coordinates,
@@ -151,129 +190,96 @@ export async function getDeliveryRoute(
         }
       }
     } catch (err) {
-      console.warn("Google Directions API failed, falling back to local road network:", err);
+      console.warn("Google Directions API failed, using geodetic path:", err);
     }
   }
 
-  // Fallback: Use real road network coordinates adapted to origin & destination
-  const roadCoords = [...DEFAULT_ROAD_COORDINATES];
-  roadCoords[0] = origin;
-  roadCoords[roadCoords.length - 1] = destination;
-
-  // Calculate total route distance along the road
-  let totalDistance = 0;
-  for (let i = 0; i < roadCoords.length - 1; i++) {
-    totalDistance += calculateDistanceMeters(roadCoords[i], roadCoords[i + 1]);
-  }
-
-  // Assuming average delivery bike speed in city = 22 km/h (~6.1 m/s)
-  const durationSeconds = Math.round(totalDistance / 6.1);
+  // Fallback: Geodetic line directly between the true origin and destination
+  const distance = calculateDistanceMeters(origin, destination);
+  // Estimate travel time at ~20 km/h city average speed (5.5 m/s)
+  const durationSeconds = Math.max(180, Math.round(distance / 5.5));
 
   return {
-    coordinates: roadCoords,
-    distanceMeters: totalDistance,
+    coordinates: [origin, destination],
+    distanceMeters: distance,
     durationSeconds,
   };
 }
 
 /**
- * Formats seconds into human-friendly ETA text (e.g. "10–15 min").
- */
-export function formatETA(seconds: number): string {
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  if (minutes <= 3) return "Arriving in 2–3 min";
-  if (minutes <= 7) return `Arriving in ${minutes - 2}–${minutes} min`;
-  return `Arriving in ${minutes - 3}–${minutes + 2} min`;
-}
-
-/**
- * Formats distance in meters to a readable string (e.g. "1.8 km away" or "450 m away").
- */
-export function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${meters} m away`;
-  }
-  return `${(meters / 1000).toFixed(1)} km away`;
-}
-
-/**
- * Subscribes to live order tracking.
+ * Subscribes to backend-driven live order tracking using authenticated polling.
  *
- * In production: Connects to WebSocket / SSE endpoint for live courier updates.
- * In development: Simulates smooth real-time courier movement along the road route.
+ * Requirements enforced:
+ *   - No fake coordinate progression or setInterval timers simulating roads.
+ *   - In-flight request lock prevents overlapping network traffic.
+ *   - Stops polling automatically when an order reaches terminal status (DELIVERED/CANCELLED).
+ *   - Cleans up timers when component unmounts.
+ *   - Applies bounded exponential backoff on network failures.
  */
 export function subscribeOrderTracking(
-  orderId: string,
-  initialTracking: DeliveryTracking,
-  onUpdate: (data: Partial<DeliveryTracking>) => void
+  orderId: string | number,
+  onUpdate: (data: BackendTrackingData) => void,
+  options?: TrackingSubscriptionOptions
 ): () => void {
-  // Check if WebSocket gateway is available (future backend hook)
-  // If not available, run realistic development simulation along the road route.
+  const baseIntervalMs = options?.pollingIntervalMs ?? 10000; // 10 seconds default
+  let currentIntervalMs = baseIntervalMs;
   let isCancelled = false;
+  let isFetching = false;
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  let failureCount = 0;
 
-  const fullRoute = initialTracking.routeCoordinates && initialTracking.routeCoordinates.length > 1
-    ? initialTracking.routeCoordinates
-    : DEFAULT_ROAD_COORDINATES;
-
-  // Find nearest starting index in the route to initial partner location
-  const partnerStart = initialTracking.deliveryPartnerLocation || fullRoute[0];
-  let currentIndex = 0;
-  let minDistance = Infinity;
-
-  for (let i = 0; i < fullRoute.length; i++) {
-    const d = calculateDistanceMeters(partnerStart, fullRoute[i]);
-    if (d < minDistance) {
-      minDistance = d;
-      currentIndex = i;
-    }
-  }
-
-  const interval = setInterval(() => {
+  const poll = async () => {
     if (isCancelled) return;
-
-    if (currentIndex < fullRoute.length - 1) {
-      currentIndex++;
-      const currentLoc = fullRoute[currentIndex];
-      const nextLoc =
-        currentIndex < fullRoute.length - 1
-          ? fullRoute[currentIndex + 1]
-          : fullRoute[currentIndex];
-
-      const heading = calculateBearing(currentLoc, nextLoc);
-
-      // Remaining road coordinates from current courier position to customer
-      const remainingRoute = fullRoute.slice(currentIndex);
-      const traveledRoute = fullRoute.slice(0, currentIndex + 1);
-
-      // Calculate remaining distance
-      let remainingMeters = 0;
-      for (let i = 0; i < remainingRoute.length - 1; i++) {
-        remainingMeters += calculateDistanceMeters(remainingRoute[i], remainingRoute[i + 1]);
-      }
-
-      const etaSeconds = Math.round(remainingMeters / 6.1);
-
-      onUpdate({
-        deliveryPartnerLocation: currentLoc,
-        deliveryPartnerHeading: heading,
-        distanceRemainingMeters: remainingMeters,
-        estimatedArrival: formatETA(etaSeconds),
-        routeCoordinates: remainingRoute,
-        traveledCoordinates: traveledRoute,
-      });
-    } else {
-      // Arrived at destination
-      onUpdate({
-        deliveryPartnerLocation: fullRoute[fullRoute.length - 1],
-        distanceRemainingMeters: 0,
-        estimatedArrival: "Arrived at your location",
-      });
-      clearInterval(interval);
+    if (isFetching) {
+      // Previous request still in flight, reschedule
+      timerId = setTimeout(poll, currentIntervalMs);
+      return;
     }
-  }, 3000); // Progress step every 3 seconds
+
+    isFetching = true;
+
+    try {
+      const response = await ordersApi.getOrderTracking(orderId);
+      if (isCancelled) return;
+
+      if (response.success && response.data) {
+        failureCount = 0;
+        currentIntervalMs = baseIntervalMs; // Reset backoff on success
+
+        const tracking = response.data as BackendTrackingData;
+        onUpdate(tracking);
+
+        // Terminal status: stop polling immediately
+        const terminalStatuses = ["DELIVERED", "CANCELLED"];
+        if (terminalStatuses.includes(tracking.status)) {
+          isCancelled = true;
+          return;
+        }
+      }
+    } catch (err) {
+      if (isCancelled) return;
+      failureCount++;
+      // Exponential backoff capped at 30 seconds
+      currentIntervalMs = Math.min(30000, baseIntervalMs * Math.pow(1.5, Math.min(failureCount, 3)));
+      if (options?.onError) {
+        options.onError(err);
+      }
+    } finally {
+      isFetching = false;
+      if (!isCancelled) {
+        timerId = setTimeout(poll, currentIntervalMs);
+      }
+    }
+  };
+
+  // Run immediate first poll
+  poll();
 
   return () => {
     isCancelled = true;
-    clearInterval(interval);
+    if (timerId) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
   };
 }

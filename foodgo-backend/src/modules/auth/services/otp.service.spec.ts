@@ -390,4 +390,105 @@ describe('OtpService', () => {
       );
     });
   });
+
+  describe('Email OTP operations', () => {
+    it('generates 6-digit OTP and hashes it with bcrypt for valid email', async () => {
+      prismaMock.otpVerification.findFirst.mockResolvedValue(null);
+      prismaMock.otpVerification.deleteMany.mockResolvedValue({ count: 0 });
+      prismaMock.otpVerification.create.mockResolvedValue({ id: 100n });
+
+      const otp = await service.createEmailOtp('User@Example.COM');
+
+      expect(otp).toMatch(/^\d{6}$/);
+      expect(prismaMock.otpVerification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          email: 'user@example.com',
+          purpose: 'LOGIN',
+          attempts: 0,
+          maxAttempts: 5,
+        }),
+      });
+    });
+
+    it('rejects invalid email address', async () => {
+      await expect(service.createEmailOtp('not-an-email')).rejects.toThrow(BadRequestException);
+    });
+
+    it('enforces cooldown on email OTP request', async () => {
+      prismaMock.otpVerification.findFirst.mockResolvedValue({
+        id: 101n,
+        createdAt: new Date(Date.now() - 10000), // 10s ago, cooldown is 60s
+      });
+
+      await expect(service.createEmailOtp('user@example.com')).rejects.toThrow(
+        /Please wait \d+ seconds before requesting a new OTP/,
+      );
+    });
+
+    it('successfully verifies email OTP and atomically deletes record', async () => {
+      const plainOtp = '123456';
+      const otpHash = await bcrypt.hash(plainOtp, 10);
+
+      prismaMock.otpVerification.findFirst.mockResolvedValue({
+        id: 200n,
+        email: 'user@example.com',
+        purpose: 'LOGIN',
+        otpHash,
+        attempts: 0,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      });
+
+      prismaMock.otpVerification.deleteMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.verifyEmailOtp('user@example.com', plainOtp);
+
+      expect(result).toBe(true);
+      expect(prismaMock.otpVerification.deleteMany).toHaveBeenCalledWith({
+        where: { id: 200n },
+      });
+    });
+
+    it('rejects expired email OTP', async () => {
+      prismaMock.otpVerification.findFirst.mockResolvedValue({
+        id: 201n,
+        email: 'user@example.com',
+        purpose: 'LOGIN',
+        otpHash: 'somehash',
+        attempts: 0,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() - 1000), // expired 1s ago
+      });
+
+      prismaMock.otpVerification.deleteMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.verifyEmailOtp('user@example.com', '123456')).rejects.toThrow(
+        'OTP has expired. Please request a new one.',
+      );
+    });
+
+    it('increments attempts on wrong code and decrements remaining', async () => {
+      const realOtp = '654321';
+      const otpHash = await bcrypt.hash(realOtp, 10);
+
+      prismaMock.otpVerification.findFirst.mockResolvedValue({
+        id: 202n,
+        email: 'user@example.com',
+        purpose: 'LOGIN',
+        otpHash,
+        attempts: 1,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      });
+
+      prismaMock.otpVerification.update.mockResolvedValue({
+        attempts: 2,
+        maxAttempts: 5,
+      });
+
+      await expect(service.verifyEmailOtp('user@example.com', '000000')).rejects.toThrow(
+        'Invalid OTP code. 3 attempt(s) remaining.',
+      );
+    });
+  });
 });

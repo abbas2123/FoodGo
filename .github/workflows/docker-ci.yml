@@ -1,0 +1,247 @@
+name: CI & Docker Image Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-code-and-tests:
+    name: Code Validation, Tests & Compilation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: cipassword
+          POSTGRES_DB: foodgo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: foodgo-backend/package-lock.json
+
+      - name: Verify Backend Lockfile & Install Dependencies
+        working-directory: foodgo-backend
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: foodgo-backend
+        env:
+          DATABASE_URL: "postgresql://postgres:cipassword@localhost:5432/foodgo_test?sslmode=disable"
+        run: npx prisma generate
+
+      - name: Run Database Migrations on Ephemeral CI DB
+        working-directory: foodgo-backend
+        env:
+          DATABASE_URL: "postgresql://postgres:cipassword@localhost:5432/foodgo_test?sslmode=disable"
+        run: npm run prisma:deploy
+
+      - name: Run Backend Unit Tests
+        working-directory: foodgo-backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: "postgresql://postgres:cipassword@localhost:5432/foodgo_test?sslmode=disable"
+          JWT_ACCESS_SECRET: "dummy_jwt_access_secret_for_ci_test_12345"
+          JWT_REFRESH_SECRET: "dummy_jwt_refresh_secret_for_ci_test_12345"
+        run: npm run test
+
+      - name: Run Backend E2E Tests
+        working-directory: foodgo-backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: "postgresql://postgres:cipassword@localhost:5432/foodgo_test?sslmode=disable"
+          JWT_ACCESS_SECRET: "dummy_jwt_access_secret_for_ci_test_12345"
+          JWT_REFRESH_SECRET: "dummy_jwt_refresh_secret_for_ci_test_12345"
+        run: npm run test:e2e
+
+      - name: Compile Backend TypeScript
+        working-directory: foodgo-backend
+        run: npx tsc -p tsconfig.build.json
+
+      - name: Verify Mobile Customer TypeScript Compilation
+        working-directory: foodgo-customer
+        run: |
+          npm ci
+          npx tsc --noEmit
+
+  docker-image-validation:
+    name: Docker Build & Runtime Smoke Test
+    needs: validate-code-and-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./foodgo-backend
+          file: ./foodgo-backend/Dockerfile
+          tags: foodgo-backend:ci-test
+          load: true
+          push: false
+
+      - name: Inspect Image Properties
+        run: |
+          echo "=== Verifying User ==="
+          USER=$(docker image inspect foodgo-backend:ci-test --format '{{.Config.User}}')
+          echo "Configured User: $USER"
+          if [ "$USER" != "nestjs" ]; then
+            echo "ERROR: Image must run as non-root user 'nestjs', found: $USER"
+            exit 1
+          fi
+
+          echo "=== Verifying Working Directory ==="
+          WORKDIR=$(docker image inspect foodgo-backend:ci-test --format '{{.Config.WorkingDir}}')
+          echo "Configured WorkingDir: $WORKDIR"
+          if [ "$WORKDIR" != "/app" ]; then
+            echo "ERROR: Expected WorkingDir /app, found: $WORKDIR"
+            exit 1
+          fi
+
+          echo "=== Verifying Exposed Ports ==="
+          PORTS=$(docker image inspect foodgo-backend:ci-test --format '{{json .Config.ExposedPorts}}')
+          echo "Exposed Ports: $PORTS"
+
+      - name: Verify Container File Structure & Artifacts
+        run: |
+          echo "=== Checking Compiled Entrypoint ==="
+          docker run --rm foodgo-backend:ci-test test -f /app/dist/main.js
+
+          echo "=== Checking Compiled Prisma Client ==="
+          docker run --rm foodgo-backend:ci-test test -f /app/dist/generated/prisma/client.js
+
+          echo "=== Checking Prisma Engine Binary in dist ==="
+          docker run --rm foodgo-backend:ci-test ls -la /app/dist/generated/prisma/
+
+          echo "=== Checking Prisma Engine Binary in src ==="
+          docker run --rm foodgo-backend:ci-test ls -la /app/src/generated/prisma/
+
+          echo "=== Checking Prisma CLI & Config for Migrations ==="
+          docker run --rm foodgo-backend:ci-test test -f /app/prisma.config.ts
+          docker run --rm foodgo-backend:ci-test test -f /app/prisma/schema.prisma
+          docker run --rm foodgo-backend:ci-test test -d /app/prisma/migrations
+          docker run --rm foodgo-backend:ci-test npx prisma --version
+
+          echo "=== Verifying Secret Exclusion (No .env files) ==="
+          docker run --rm foodgo-backend:ci-test sh -c 'test ! -f /app/.env && test ! -f /app/.env.local && test ! -f /app/.env.staging && echo "No .env files leaked"'
+
+      - name: Runtime Smoke Test & Health Endpoint Verification
+        run: |
+          # Create dedicated isolated Docker network
+          docker network create ci-smoke-net
+
+          # Start ephemeral PostgreSQL
+          docker run -d --name smoke-pg --network ci-smoke-net \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=smokepassword \
+            -e POSTGRES_DB=foodgo_smoke \
+            postgres:16-alpine
+
+          # Wait for PostgreSQL to become healthy
+          until docker exec smoke-pg pg_isready -U postgres; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+          # 1. Run migrations via containerized release command
+          echo "=== Running Database Migration Job ==="
+          docker run --rm --network ci-smoke-net \
+            -e DATABASE_URL="postgresql://postgres:smokepassword@smoke-pg:5432/foodgo_smoke?sslmode=disable" \
+            foodgo-backend:ci-test \
+            npm run prisma:deploy
+
+          # 2. Start application container
+          echo "=== Starting FoodiGo Backend Container ==="
+          docker run -d --name smoke-backend --network ci-smoke-net -p 3000:3000 \
+            -e NODE_ENV=development \
+            -e PORT=3000 \
+            -e DATABASE_URL="postgresql://postgres:smokepassword@smoke-pg:5432/foodgo_smoke?sslmode=disable" \
+            -e JWT_ACCESS_SECRET="dummy_jwt_access_secret_for_ci_test_12345" \
+            -e JWT_REFRESH_SECRET="dummy_jwt_refresh_secret_for_ci_test_12345" \
+            -e TRUST_PROXY_HOPS=0 \
+            foodgo-backend:ci-test
+
+          # Poll for application to start
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/health/live > /dev/null 2>&1; then
+              echo "Backend is accepting requests!"
+              break
+            fi
+            echo "Waiting for backend startup... ($i/30)"
+            sleep 2
+          done
+
+          # Check container logs
+          docker logs smoke-backend
+
+          # 3. Probe /health/live (must be HTTP 200)
+          echo "=== Probing /health/live ==="
+          LIVE_RESPONSE=$(curl -sf http://localhost:3000/health/live)
+          echo "Response: $LIVE_RESPONSE"
+          echo "$LIVE_RESPONSE" | grep -q '"status":"ok"'
+
+          # 4. Probe /health/ready (must be HTTP 200 with DB connected)
+          echo "=== Probing /health/ready (Healthy Database) ==="
+          READY_RESPONSE=$(curl -sf http://localhost:3000/health/ready)
+          echo "Response: $READY_RESPONSE"
+          echo "$READY_RESPONSE" | grep -q '"database":"connected"'
+
+          # 5. Probe legacy /health (must be HTTP 200)
+          echo "=== Probing /health (Combined) ==="
+          COMBINED_RESPONSE=$(curl -sf http://localhost:3000/health)
+          echo "Response: $COMBINED_RESPONSE"
+          echo "$COMBINED_RESPONSE" | grep -q '"status":"ok"'
+
+          # 6. Simulate Database Failure & Verify /health/ready degradation
+          echo "=== Stopping PostgreSQL to simulate database outage ==="
+          docker stop smoke-pg
+
+          READY_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health/ready)
+          echo "HTTP Code when DB is down: $READY_CODE"
+          if [ "$READY_CODE" != "503" ]; then
+            echo "ERROR: Expected HTTP 503 from /health/ready during DB outage, got: $READY_CODE"
+            exit 1
+          fi
+
+          # 7. Verify /health/live remains HTTP 200 despite DB outage
+          LIVE_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health/live)
+          echo "HTTP Code for /health/live when DB is down: $LIVE_CODE"
+          if [ "$LIVE_CODE" != "200" ]; then
+            echo "ERROR: Expected HTTP 200 from /health/live during DB outage, got: $LIVE_CODE"
+            exit 1
+          fi
+
+          echo "=== Smoke Test & Resilience Verification Succeeded! ==="
+
+      - name: Cleanup Temporary Smoke Test Containers & Network
+        if: always()
+        run: |
+          docker stop smoke-backend 2>/dev/null || true
+          docker rm smoke-backend 2>/dev/null || true
+          docker stop smoke-pg 2>/dev/null || true
+          docker rm smoke-pg 2>/dev/null || true
+          docker network rm ci-smoke-net 2>/dev/null || true
